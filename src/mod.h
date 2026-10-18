@@ -149,6 +149,8 @@ void gatling_lookdir(char* p, float out[3]);  // mira lida pelo controller da ga
 float gatling_fire(char* p);                  // gatilho (ação 161) pela manivela; −1 fora da gatling
 bool gatling_muzzle(char* p, float o[3], float d[3]);  // boca e direção da gatling para o Shoot; false fora dela
 void gatling_frame(char* p);                  // mira, manivela, saída e ponto de mira, no fim do update
+void gatling_camera(char* p);                 // depois da câmera FPP: mãos visíveis montado; a manivela segue a mão
+bool gatling_grip(int side, const float* T, float out[12]);  // Holder da mão física side presa no cabo da manivela
 bool ladder_busy();                          // player.cpp: escada automática em curso (bloqueia o usar)
 float ladder_fade();                         // player.cpp: escuro da escada automática (0..1)
 float ladder_action(int a);                  // player.cpp: valor das ações 80/81 (subir/descer) na escada automática; −1 = o jogo decide

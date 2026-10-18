@@ -430,7 +430,7 @@ void __fastcall hk_camvf8(char* self, void*) {
 		auto setframe = (void(__thiscall*)(char*, float*, float*, float*))(*(void***)self)[5];
 		setframe(self, back, up, pos);
 		leash(pos[0] - g_anchor[0], pos[2] - g_anchor[2]);
-		weapon_camera();
+		weapon_camera(), gatling_camera(p);
 		duel_tutorial_log(p, 0);
 	} else if (p && player_paused()) {
 		weapon_paused();

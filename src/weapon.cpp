@@ -422,14 +422,15 @@ typedef bool(__stdcall* shoot_t)(char*, float, float, float);
 bool __stdcall hk_shoot(char* wfc, float x, float y, float z) {
 	char* p = player_local();
 	int h = *(int*)(wfc + 0x160);
+	bool gat = false;
 	if (p && *(char**)(wfc + 0x28) == p && player_head_frame() && (h == 0 || h == 1) &&
-	    (gatling_muzzle(p, g_muzzle, g_dir) || (setting("weapons", 1) && g_hand_ok[phys(h)] && muzzle_of(h, g_muzzle, g_dir))))
+	    ((gat = gatling_muzzle(p, g_muzzle, g_dir)) || (setting("weapons", 1) && g_hand_ok[phys(h)] && muzzle_of(h, g_muzzle, g_dir))))
 		g_shot = h;  // na gatling o tiro sai da boca dela, na mira da mão de apoio
 	player_mark('F');
 	if (g_shot >= 0 && setting("weapon_log", 0))
 		logf("armas: Shoot mão %d (ordem do frame anterior %s) cano %.1f %.1f %.1f direção %.3f %.3f %.3f", h, player_order(), g_muzzle[0], g_muzzle[1], g_muzzle[2], g_dir[0],
 		     g_dir[1], g_dir[2]);
-	if (g_shot >= 0) wall_test(p, g_muzzle);
+	if (g_shot >= 0 && !gat) wall_test(p, g_muzzle);  // na gatling o corpo dela fica entre a cabeça e a boca
 	if (g_shot >= 0) {
 		LARGE_INTEGER t;
 		QueryPerformanceCounter(&t);
@@ -1330,8 +1331,6 @@ void weapon_camera() {
 	if (!vis || !setting("weapons", 1)) return;
 	char *body = vis + 0x20, *bobj = body_obj(body);
 	char* p = player_local();
-	// Na gatling as mãos e a arma ficam com a animação do próprio jogo (mãos nas manoplas) e o ponto de mira é o dela.
-	if (gatling_on(p)) return vr_reticle(0, NULL, 0), vr_reticle(1, NULL, 0);
 	// Captura das poses de referência dos dedos (uma vez por sessão, depois de 60 frames seguidos com arma única curta na
 	// mão lógica 0 e a 1 vazia: a direita segura o revólver e a esquerda fica solta).
 	static int steady;
@@ -1367,9 +1366,9 @@ void weapon_camera() {
 	for (int h = 0; h < 2; h++)
 		if (g_hand_ok[h]) player_to_game(g_trk[h], g_hand[h]), holder_of(g_hand[h], T[h]);  // a pose do frame, âncora final
 	aim_update();
-	bool duel = duel_active(p);
+	bool duel = duel_active(p), gat = gatling_on(p);  // na gatling as mãos ficam vazias, nos controles (o ponto de mira é o dela)
 	for (int k = 0; k < 2; k++) {
-		if (!g_hand_ok[phys(k)] || !shown(p, k) || (k == 0 && duel_gun_holstered(p))) continue;  // duelo: arma no coldre até o saque
+		if (gat || !g_hand_ok[phys(k)] || !shown(p, k) || (k == 0 && duel_gun_holstered(p))) continue;  // duelo: arma no coldre até o saque
 		float K[12], c = kick_f(k);  // coice em torno da pega (frame do Holder): cano para cima e arma para trás
 		rot_yp(0, -setting("kick_deg", 12) * c, 0, 0, -setting("kick_cm", 2) * c, K);
 		mul34(g_aim[k], K, W[k]), on[k] = true;
@@ -1436,15 +1435,19 @@ void weapon_camera() {
 			rot_yp(yw, pt, 0, 0, 0, R), mul34(HB[k], R, a), mul34(a, Rr, HB[k]);
 		}
 	}
+	float GH[12];  // na gatling, a mão na manivela vai para o cabo dela, fechada
+	static const float fist[5] = {1, 1, 1, 1, 1};
 	for (int side = 0; side < 2; side++) {
-		const float* t = on[0] && phys(0) == side ? HB[0] : on[1] && phys(1) == side ? HB[1] : side == sup_side ? SH : T[side];
+		bool crank = gat && gatling_grip(side, T[side], GH);
+		const float* t = crank ? GH : on[0] && phys(0) == side ? HB[0] : on[1] && phys(1) == side ? HB[1] : side == sup_side ? SH : T[side];
 		bool anim = (on[side] && phys(side) == side) || (side && snap) || !setting("fingers", 1);
 		bool own = on[side] && phys(side) == side;
 		bool reload = false;  // recarga da arma desta mão (WFC +0x30: 3 começo, 4 em curso; WFC D/E em PlayerDI+0x538/+0x53C)
 		for (int k = 0; k < 2 && own && p; k++)
 			if (on[k] && phys(k) == side)
 				if (char* wfc = *(char**)(p + 0x538 + 4 * k)) reload = (*(int*)(wfc + 0x30) == 3 || *(int*)(wfc + 0x30) == 4) && setting("reload_freeze", 1);
-		if (g_hand_ok[side] && setting("hands", 1) && hand_place(body, bobj, side, side && snap ? LH : t, side && snap, anim ? NULL : curl[side], own, reload))
+		if (g_hand_ok[side] && setting("hands", 1) &&
+		    hand_place(body, bobj, side, side && snap ? LH : t, side && snap, crank ? fist : anim ? NULL : curl[side], own, reload))
 			continue;
 		int i = body_bone(body, side ? "L_Clavicle" : "R_Clavicle");
 		if (i < 0 || !setting("hide_arms", 1)) continue;
@@ -2023,8 +2026,8 @@ void weapon_pad(LONG* cur) {
 	// Golpe: mão a mais de melee_speed (cm/s) se afastando da cabeça dispara o corpo a corpo do jogo (ele escolhe o alvo
 	// no cone à frente, como no botão). Não vale para a mão com a dinamite nem logo depois de um arremesso pelo braço.
 	static LONGLONG melee_until, melee_next;
-	if (setting("melee_swing", 1) && !setting("fake_hmd", 0) && !duel_active(p) && t.QuadPart >= melee_next &&
-	    t.QuadPart - g_throw_qpc > f.QuadPart / 2)  // no duelo o saque é um movimento rápido da mão
+	if (setting("melee_swing", 1) && !setting("fake_hmd", 0) && !duel_active(p) && !gatling_on(p) && t.QuadPart >= melee_next &&
+	    t.QuadPart - g_throw_qpc > f.QuadPart / 2)  // no duelo o saque é um movimento rápido da mão; na gatling, a manivela
 		for (int h = 0; h < 2; h++) {
 			if (!g_hand_ok[h] || (h == phys(0) && dyn)) continue;
 			const float *v = g_trk_v[h], *H = player_hmd(), *T = g_trk[h];  // tracking: andar não conta como golpe
