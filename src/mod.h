@@ -126,7 +126,7 @@ const char* player_order();                   // diagnóstico: ordem de eventos 
 // weapon.cpp: armas e mãos
 void weapon_init();                           // hook do PlayerFppVis::vf110; só com os hooks do jogador
 void weapon_frame();                          // antes do OnFrame, com a cabeça aplicada: pose das mãos do frame
-void weapon_camera();                         // depois da câmera FPP, com a cabeça aplicada (âncora final do frame)
+void weapon_camera(bool paused = false);      // depois da câmera FPP, com a cabeça aplicada (âncora final do frame)
 void weapon_paused();                         // mesmo ponto, na pausa em 3D (tela do fim do duelo)
 bool weapon_muzzle(float out[3]);             // cano da mão do Shoot em curso (false fora do Shoot do jogador)
 bool weapon_barrel(int k, float pos[3], float dir[3]);  // cano e eixo da arma da mão lógica k no frame

@@ -136,7 +136,7 @@ float* level_var(char* lvl, const char* name) {
 	static struct {
 		const char* name;
 		int off;
-	} cache[32];
+	} cache[96];
 	static int n;
 	char* vm = *(char**)0x02E658D4;
 	char* vs = *(char**)(lvl + 0x90);
@@ -144,7 +144,7 @@ float* level_var(char* lvl, const char* name) {
 	int i = 0;
 	while (i < n && cache[i].name != name) i++;
 	if (i == n) {
-		if (n == 32) return NULL;
+		if (n == 96) return NULL;
 		cache[n].name = name, cache[n].off = -1, n++;
 		auto cs = (CRITICAL_SECTION*)(vm + 0x1D8);
 		EnterCriticalSection(cs);
@@ -173,7 +173,21 @@ void effects_off(char* lvl) {
 	                                     "f_player_shoot_opacity", "f_pp_blur_on", "f_pp_blur_camera_motion_factor",
 	                                     "f_pp_shake_on", "f_pp_aberration_on", "f_pp_blur_radial_on", "f_pp_noise",
 	                                     "f_hud_frame_on"};
-	static const char* const k_hit[] = {"f_pp_game_player_hit_on", "f_pp_overlays"};
+	// As malhas de rasgo e refração do dano desenham fora do bloco do f_pp_game_player_hit_on, com a textura da cena
+	// que ele preparia: com ele zerado elas saíam como quadrados pretos com uma estrela branca. Saem junto.
+	static const char* const k_hit[] = {
+	    "f_pp_game_player_hit_on", "f_pp_overlays", "f_pp_game_player_hit_a_tear_bkg", "f_pp_game_player_hit_b_tear_bkg",
+	    "f_pp_game_player_hit_c_tear_bkg", "f_pp_game_player_hit_d_tear_bkg", "f_pp_game_player_hit_e_tear_bkg",
+	    "f_pp_game_player_hit_f_tear_bkg", "f_pp_game_player_hit_g_tear_bkg", "f_pp_game_player_hit_h_tear_bkg",
+	    "f_pp_game_player_hit_e_tnt_tear_bkg", "f_pp_game_player_hit_f_tnt_tear_bkg", "f_pp_game_player_hit_g_tnt_tear_bkg",
+	    "f_pp_game_player_hit_h_tnt_tear_bkg", "f_pp_game_player_hit_i_tnt_tear_bkg", "f_pp_game_player_hit_j_tnt_tear_bkg",
+	    "f_pp_game_player_hit_k_tnt_tear_bkg", "f_pp_game_player_hit_a_rfr_opacity", "f_pp_game_player_hit_b_rfr_opacity",
+	    "f_pp_game_player_hit_c_rfr_opacity", "f_pp_game_player_hit_d_rfr_opacity", "f_pp_game_player_hit_e_rfr_opacity",
+	    "f_pp_game_player_hit_f_rfr_opacity", "f_pp_game_player_hit_g_rfr_opacity", "f_pp_game_player_hit_h_rfr_opacity",
+	    "f_pp_game_player_hit_e_tnt_rfr_opacity", "f_pp_game_player_hit_f_tnt_rfr_opacity",
+	    "f_pp_game_player_hit_g_tnt_rfr_opacity", "f_pp_game_player_hit_h_tnt_rfr_opacity",
+	    "f_pp_game_player_hit_i_tnt_rfr_opacity", "f_pp_game_player_hit_j_tnt_rfr_opacity",
+	    "f_pp_game_player_hit_k_tnt_rfr_opacity"};
 	for (const char* n : k_vars)
 		if (float* v = level_var(lvl, n)) *v = 0;
 	if (video_eye_mode())  // garante a cena direto no backbuffer (fora do modo do olho o letterbox precisa do scaling)

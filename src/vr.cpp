@@ -123,8 +123,10 @@ void vr_init() {
 	                                                    : EVRApplicationType_VRApplication_Overlay;
 	EVRInitError e = EVRInitError_VRInitError_None;
 	init(&e, type, NULL);
-	if (e != EVRInitError_VRInitError_None)
+	if (e != EVRInitError_VRInitError_None) {
+		if (setting("fake_hmd", 0)) hud_init();  // teste sem headset: a textura do HUD também, para o SHOT e a sonda
 		return logf("OpenVR: VR_Init falhou: %d %s (o SteamVR estava aberto antes do jogo?)", e, desc(e));
+	}
 	g_sys = (VR_IVRSystem_FnTable*)fntable(get, IVRSystem_Version);
 	g_comp = (VR_IVRCompositor_FnTable*)fntable(get, IVRCompositor_Version);
 	g_ovl = (VR_IVROverlay_FnTable*)fntable(get, IVROverlay_Version);
@@ -331,10 +333,11 @@ IDirect3DSurface9* vr_eye_surface(int eye, UINT w, UINT h) {
 
 // O DXVK recusa Reset (slot 16 da vtable do device) com recursos D3DPOOL_DEFAULT vivos: soltar todas as texturas do
 // mod antes.
+static void probe_release();
 typedef HRESULT(STDMETHODCALLTYPE* reset_t)(IDirect3DDevice9*, D3DPRESENT_PARAMETERS*);
 static reset_t o_reset;
 static HRESULT STDMETHODCALLTYPE hk_reset(IDirect3DDevice9* dev, D3DPRESENT_PARAMETERS* pp) {
-	vktex_release(g_scr), vktex_release(g_eye[0]), vktex_release(g_eye[1]), vktex_release(g_hud);
+	vktex_release(g_scr), vktex_release(g_eye[0]), vktex_release(g_eye[1]), vktex_release(g_hud), probe_release();
 	HRESULT hr = o_reset(dev, pp);
 	logf("Reset %ux%u janela=%d -> %08lx", pp->BackBufferWidth, pp->BackBufferHeight, pp->Windowed, hr);
 	return hr;
@@ -498,12 +501,50 @@ static void submit_eyes() {
 // vira a textura do HUD, limpa com alfa 0, e o overlay cojvr.hud a mostra presa à cabeça. ---
 static VROverlayHandle_t g_hud_ovl;
 static unsigned g_hud_pc;  // frame cuja UI está na textura do HUD
+// Fade de tela cheia dentro da UI do nível (o preto de ~1 s ao começar ou recarregar uma fase): num painel preso à
+// cabeça ele vira um quadrado preto na frente do 3D. A cada frame uma cópia 16x16 da textura do HUD vai para a memória,
+// e a de 2 frames atrás (já pronta, sem esperar a GPU) diz quanto dela está opaca: acima de hud_full (0,85) o overlay
+// fica escondido. Sem leitura recente (os 2 primeiros frames com HUD) ele também fica escondido. Se a cópia falhar, a
+// detecção desliga e o HUD aparece sempre.
+static bool g_pr_off;
+static IDirect3DSurface9 *g_pr_rt[3], *g_pr_sys[3];
+static unsigned g_pr_pc[3], g_full_pc = ~0u, g_clear_pc = ~0u;  // frame da cópia; da última leitura opaca e da limpa
+static int g_pr_i;
+static void probe_release() {
+	for (int i = 0; i < 3; i++) {
+		if (g_pr_rt[i]) g_pr_rt[i]->Release(), g_pr_rt[i] = NULL;
+		if (g_pr_sys[i]) g_pr_sys[i]->Release(), g_pr_sys[i] = NULL;
+		g_pr_pc[i] = 0;
+	}
+}
+static void hud_probe(IDirect3DDevice9* dev) {
+	int i = g_pr_i, j = (i + 1) % 3;
+	if (!g_pr_rt[i] && (FAILED(dev->CreateRenderTarget(16, 16, D3DFMT_A8R8G8B8, D3DMULTISAMPLE_NONE, 0, FALSE, &g_pr_rt[i], NULL)) ||
+	                    FAILED(dev->CreateOffscreenPlainSurface(16, 16, D3DFMT_A8R8G8B8, D3DPOOL_SYSTEMMEM, &g_pr_sys[i], NULL))))
+		return probe_release(), void(g_pr_off = true), logf("HUD: sem a cópia da textura; fade de tela cheia não detectado");
+	if (FAILED(dev->StretchRect(g_hud.surf, NULL, g_pr_rt[i], NULL, D3DTEXF_POINT)) || FAILED(dev->GetRenderTargetData(g_pr_rt[i], g_pr_sys[i])))
+		return void(g_pr_off = true), logf("HUD: cópia da textura falhou; fade de tela cheia não detectado");
+	g_pr_pc[i] = present_count();
+	D3DLOCKED_RECT lr;
+	if (g_pr_pc[j] && SUCCEEDED(g_pr_sys[j]->LockRect(&lr, NULL, D3DLOCK_READONLY))) {
+		int n = 0;
+		for (int y = 0; y < 16; y++)
+			for (int x = 0; x < 16; x++) n += ((unsigned char*)lr.pBits)[y * lr.Pitch + x * 4 + 3] > 128;
+		g_pr_sys[j]->UnlockRect();
+		bool full = n > 256 * setting("hud_full", 0.85f), was = g_full_pc + 3 >= present_count();
+		(full ? g_full_pc : g_clear_pc) = g_pr_pc[j];
+		if (full && !was) logf("HUD: fade de tela cheia na UI (%d%% opaca): overlay escondido", n * 100 / 256);
+	}
+	g_pr_i = j;
+}
 typedef void(__thiscall* vf44_t)(void*, void*, int, void*, int);
 static vf44_t o_vf44;
 static void __fastcall hk_vf44(void* ctx, void*, void* queue, int a, void* vars, int b) {
 	auto dev = *(IDirect3DDevice9**)game::device;
 	IDirect3DSurface9* old = NULL;
-	bool cap = g_vr && setting("hud", 1) && queue == *(void**)0x0165CF64 && stereo_frame() && SUCCEEDED(dev->GetRenderTarget(0, &old));
+	// fake_hmd (teste sem headset): a textura do HUD é preenchida igual, para o SHOT e a sonda, mas sem overlay
+	bool cap = (g_vr || setting("fake_hmd", 0)) && setting("hud", 1) && queue == *(void**)0x0165CF64 && stereo_frame() &&
+	           SUCCEEDED(dev->GetRenderTarget(0, &old));
 	if (cap) {
 		D3DSURFACE_DESC d, t;
 		old->GetDesc(&d);
@@ -518,6 +559,7 @@ static void __fastcall hk_vf44(void* ctx, void*, void* queue, int a, void* vars,
 	if (cap) {
 		dev->GetViewport(&vp), dev->SetRenderTarget(0, old), dev->SetViewport(&vp);
 		g_hud_pc = present_count();
+		if (!g_pr_off) hud_probe(dev);
 		if (g_shot_request == 2) dump_surface(g_hud.surf, "_hud");  // comando SHOT: o BMP guarda o alfa (conferir o fundo)
 	}
 	if (old) old->Release();
@@ -525,11 +567,12 @@ static void __fastcall hk_vf44(void* ctx, void*, void* queue, int a, void* vars,
 
 // O fade de tela cheia do FadeOutModule (*0x02E65FAC; o preto ao entrar no jogo) iria para o HUD preso à cabeça e
 // cobriria a visão inteira. Nos frames com olhos ele fica fora da fila da UI (CLevel::vf164, thiscall com 2 args);
-// hud_fade 1 volta a mostrá-lo.
+// hud_fade 1 volta a mostrá-lo. O vf164 recebe o nível do módulo ("FadeoutModule"), em FadeOutModule+4.
 typedef void(__thiscall* vf164_t)(char*, void*, void*);
 static vf164_t o_vf164;
 static void __fastcall hk_vf164(char* lvl, void*, void* a, void* b) {
-	if (g_vr && lvl == *(char**)0x02E65FAC && stereo_frame() && setting("hud", 1) && !setting("hud_fade", 0)) {
+	char* fm = *(char**)0x02E65FAC;
+	if ((g_vr || setting("fake_hmd", 0)) && fm && (lvl == fm || lvl == *(char**)(fm + 4)) && stereo_frame() && setting("hud", 1) && !setting("hud_fade", 0)) {
 		static bool logged;
 		if (!logged) logged = true, logf("HUD: fade do FadeOutModule %p fora do HUD", (void*)lvl);
 		return;
@@ -582,6 +625,7 @@ static EVROverlayError hud_texture(VROverlayHandle_t o) {  // a textura do HUD d
 // Overlay do HUD em CENA quando a UI deste frame foi para a textura; preso à cabeça (hud_dist, hud_width, hud_y em m).
 static void hud_submit() {
 	bool show = g_cena && g_hud.itex && g_hud_pc == present_count() && g_wheel_pc != present_count();  // roda aberta: só ela
+	if (!g_pr_off) show = show && g_clear_pc != ~0u && g_clear_pc + 3 >= present_count() && !(g_full_pc != ~0u && g_full_pc > g_clear_pc);
 	if (!show || (!g_hud_ovl && g_ovl->CreateOverlay((char*)"cojvr.hud", (char*)"CoJ VR HUD", &g_hud_ovl))) {
 		if (g_hud_ovl) g_ovl->HideOverlay(g_hud_ovl);
 		return;

@@ -433,7 +433,7 @@ void __fastcall hk_camvf8(char* self, void*) {
 		weapon_camera(), gatling_camera(p);
 		duel_tutorial_log(p, 0);
 	} else if (p && player_paused()) {
-		weapon_paused();
+		weapon_camera(true), weapon_paused();
 		duel_tutorial_log(p, 1);
 	} else if (p) {
 		duel_tutorial_log(p, 2);

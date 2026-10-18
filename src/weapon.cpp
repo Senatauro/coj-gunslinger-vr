@@ -480,6 +480,32 @@ asm(".globl _launch_thunk\n"
     "  mov $0x00F4C7F0, %ecx\n"
     "  jmp *%ecx\n");
 
+// Recarga automática (StartReload 0x00BEE480, stdcall (char pelo jogador), EAX = WFC): com o pente vazio o jogo recarrega
+// sozinho no update do WFC, no Shoot sem bala e ao sacar uma arma vazia (as três chamadas com 0). Em VR a do jogador só
+// vem do X (a chamada com 1); auto_reload 1 devolve as automáticas. Os inimigos continuam recarregando.
+extern "C" int reload_allowed(char* wfc) {
+	char* p = player_local();
+	if (setting("auto_reload", 0) || !p || *(char**)(wfc + 0x28) != p || !player_head_frame()) return 1;
+	static int n;
+	if (n < 5) n++, logf("armas: recarga automática bloqueada (WFC %p, mão %d)", (void*)wfc, *(int*)(wfc + 0x160));
+	return 0;
+}
+extern "C" void reload_thunk();
+asm(".globl _reload_thunk\n"
+    "_reload_thunk:\n"
+    "  push %eax\n"
+    "  push %eax\n"
+    "  call _reload_allowed\n"
+    "  add $4, %esp\n"
+    "  mov %eax, %ecx\n"
+    "  pop %eax\n"
+    "  test %ecx, %ecx\n"
+    "  jz 1f\n"
+    "  mov $0x00BEE480, %ecx\n"
+    "  jmp *%ecx\n"
+    "1:\n"
+    "  ret $4\n");
+
 inline char* body_obj(char* body) { return ((char*(__thiscall*)(char*))(*(void***)body)[2])(body); }
 inline int body_bone(char* body, const char* name) { return ((int(__thiscall*)(char*, const char*))0x00E93420)(body, name); }
 }  // namespace
@@ -1325,8 +1351,9 @@ void weapon_paused() {
 }
 // Mãos e armas, depois do CameraFPPDI::vf8 com a cabeça aplicada. T = alvo do HandHolder de cada mão física sem coice;
 // W = o da mão lógica com coice, na mão física dela. A mão que segura a arma vai com o coice; a arma que não está na
-// mão vai para o coldre ou encolhe no HandHolder (escala ε).
-void weapon_camera() {
+// mão vai para o coldre ou encolhe no HandHolder (escala ε). paused: na pausa em 3D o jogo segue animando o corpo e
+// os braços voltariam; as mãos ficam na última pose (o tracking só é lido no update) e sem os pontos de mira.
+void weapon_camera(bool paused) {
 	char* vis = g_vis;
 	if (!vis || !setting("weapons", 1)) return;
 	char *body = vis + 0x20, *bobj = body_obj(body);
@@ -1501,7 +1528,8 @@ void weapon_camera() {
 	// Os raycasts do ponto de mira só depois de as duas armas estarem postas: com o raio da direita no meio, a consulta
 	// de objetos dinâmicos pegaria a arma da esquerda ainda no braço encolhido, e ela piscaria.
 	for (int k = 0; k < 2; k++)
-		if (on[k]) reticle(p, k);
+		if (on[k] && !paused) reticle(p, k);
+		else if (paused) vr_reticle(phys(k), NULL, 0);
 }
 
 // Chamado no fim do player_init, só quando os hooks de player.cpp estão instalados.
@@ -1516,6 +1544,8 @@ void weapon_init() {
 	for (uintptr_t a : shoot_sites) n += patch_call(a, 0x00BE9000, (void*)hk_shoot);
 	n += patch_call(0x00BE9E57, 0x00BEA2B0, (void*)hk_aimdir);  // só o do spread (dentro do Shoot); o raio de mira a 10 Hz fica
 	patch_call(0x00BE9A63, 0x00F4C7F0, (void*)launch_thunk);
+	static const uintptr_t reload_sites[] = {0x00BE84DF, 0x00BE9215, 0x00BEA7D2};
+	for (uintptr_t a : reload_sites) patch_call(a, 0x00BEE480, (void*)reload_thunk);
 	patch_call(0x00BFA24E, 0x00BFA2E0, (void*)throw_thunk);
 	patch_call(0x00BFA3A7, 0x00BFAB20, (void*)hk_spawn);
 	// Desliga as animações de ócio da mão: FUN_00993A40 (idle depois de 30–45 s parado) e FUN_00993BC0 (IdleTrick,
