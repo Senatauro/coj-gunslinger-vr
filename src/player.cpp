@@ -420,6 +420,7 @@ void __fastcall hk_camvf8(char* self, void*) {
 	char* cam = *(char**)(self + 4);
 	char* p = local_player();
 	if (p) memcpy(g_anchor, p + 0x390, sizeof g_anchor), g_anchor_pc = present_count();
+	if (p && cam) gatling_anchor(p, (float*)(cam + 0x34), g_anchor);
 	// Câmera de update = cabeça sobre a âncora interpolada; o SetFrame (vf5) refaz a inversa e a VP
 	if (cam && p && g_head_pc == present_count()) {
 		head_cam(g_hmd, g_anchor, g_head);
@@ -482,6 +483,7 @@ float* __fastcall hk_lookdir(char* self, void*, float* out) {
 	static DWORD t_log;
 	if (ra >= 0x00A01AF0 && ra < 0x00A02778 && self == local_player() && present_count() - g_head_pc <= 1)
 		calls++, hand += weapon_use_dir(out);
+	if (ra >= 0x00BDDA80 && ra < 0x00BDDBA7 && self == local_player()) gatling_lookdir(self, out);  // mira da gatling (FUN_00BDDA80)
 	if (setting("use_log", 0) && GetTickCount() - t_log >= 2000)
 		logf("usar: escolha do alvo: %d leituras do olhar, %d pela mão", calls, hand), calls = hand = 0, t_log = GetTickCount();
 	return r;
@@ -703,7 +705,7 @@ void player_update_end(char* lvl) {
 		int m = *(int*)(p + 0x5A8), f = (*(unsigned char*)(p + 0x730) & 4) != 0;
 		if (m != mode) logf("modo: modo do jogador %d -> %d", mode, m), mode = m;
 		if (f != fixed) logf("modo: câmera fixa por script %s", f ? "ligada" : "desligada"), fixed = f;
-		duel_frame(p);
+		duel_frame(p), gatling_frame(p);
 	}
 	const char* why = tela_reason(p, p && g_anchor_pc == present_count());
 	if (why) {

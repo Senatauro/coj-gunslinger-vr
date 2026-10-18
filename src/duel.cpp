@@ -420,6 +420,8 @@ typedef float(__thiscall* gav_t)(char*, int);
 gav_t o_gav;
 float __fastcall hk_gav(char* p, void*, int a) {
 	float v = o_gav(p, a);
+	if (a == 161 && p == player_local())  // gatilho montado na gatling: pela manivela
+		if (float g = gatling_fire(p); g >= 0) return g;
 	if ((a == 80 || a == 81) && p == player_local()) {  // escada automática (player.cpp)
 		float l = ladder_action(a);
 		return l >= 0 ? l : v;

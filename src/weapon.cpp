@@ -422,9 +422,9 @@ typedef bool(__stdcall* shoot_t)(char*, float, float, float);
 bool __stdcall hk_shoot(char* wfc, float x, float y, float z) {
 	char* p = player_local();
 	int h = *(int*)(wfc + 0x160);
-	if (p && *(char**)(wfc + 0x28) == p && player_head_frame() && setting("weapons", 1) && (h == 0 || h == 1) && g_hand_ok[phys(h)] &&
-	    muzzle_of(h, g_muzzle, g_dir))
-		g_shot = h;
+	if (p && *(char**)(wfc + 0x28) == p && player_head_frame() && (h == 0 || h == 1) &&
+	    (gatling_muzzle(p, g_muzzle, g_dir) || (setting("weapons", 1) && g_hand_ok[phys(h)] && muzzle_of(h, g_muzzle, g_dir))))
+		g_shot = h;  // na gatling o tiro sai da boca dela, na mira da mão de apoio
 	player_mark('F');
 	if (g_shot >= 0 && setting("weapon_log", 0))
 		logf("armas: Shoot mão %d (ordem do frame anterior %s) cano %.1f %.1f %.1f direção %.3f %.3f %.3f", h, player_order(), g_muzzle[0], g_muzzle[1], g_muzzle[2], g_dir[0],
@@ -506,6 +506,8 @@ bool weapon_barrel(int k, float pos[3], float dir[3]) { return g_vis && muzzle_o
 void hand_body(int h, float o[3]);
 // Mão física h no frame do corpo (cm: x direita, y cima, z frente), como as zonas dos coldres.
 bool weapon_hand_body(int h, float o[3]) { return g_hand_ok[h] && (hand_body(h, o), true); }
+// Pose da mão física h no mundo do jogo (3x4, cm); NULL sem pose.
+const float* weapon_hand_game(int h) { return (h == 0 || h == 1) && g_hand_ok[h] ? g_hand[h] : NULL; }
 // Posição da mão física h no tracking (cm): o saque do duelo mede o movimento da mão, não da mão em relação à cabeça.
 bool weapon_hand_trk(int h, float o[3]) {
 	for (int i = 0; i < 3; i++) o[i] = g_trk[h][i * 4 + 3] * 100;
@@ -684,6 +686,8 @@ static float g_tp_target[3];
 static LONGLONG g_tp_blink, g_tp_go;  // fim da piscada; hora do teleporte (0 = nenhum)
 static LONGLONG tp_now() { LARGE_INTEGER t; QueryPerformanceCounter(&t); return t.QuadPart; }
 float teleport_fade() { return g_tp_blink && qpc_ms(tp_now() - g_tp_blink) < 0 ? 1 : 0; }
+// Teste (pad.txt "TP x y z"): teleporte direto para um ponto do chão, em coordenadas do mundo do jogo.
+void teleport_request(const float pos[3]) { memcpy(g_tp_target, pos, sizeof g_tp_target), g_tp_go = tp_now(); }
 
 // Pré-OnFrame (player.cpp): executa o teleporte pedido no input.
 void teleport_frame(char* p) {
@@ -1326,6 +1330,8 @@ void weapon_camera() {
 	if (!vis || !setting("weapons", 1)) return;
 	char *body = vis + 0x20, *bobj = body_obj(body);
 	char* p = player_local();
+	// Na gatling as mãos e a arma ficam com a animação do próprio jogo (mãos nas manoplas) e o ponto de mira é o dela.
+	if (gatling_on(p)) return vr_reticle(0, NULL, 0), vr_reticle(1, NULL, 0);
 	// Captura das poses de referência dos dedos (uma vez por sessão, depois de 60 frames seguidos com arma única curta na
 	// mão lógica 0 e a 1 vazia: a direita segura o revólver e a esquerda fica solta).
 	static int steady;
@@ -1877,6 +1883,7 @@ void hold_frame(char* p) {
 		g_p0 = dom();
 		return menu_close();
 	}
+	if (gatling_on(p)) return menu_close(), vr_reticle(2, NULL, 0);  // na gatling os grips são dela (gatling.cpp)
 	body_frame();
 	weapon_menu(p);
 	wrist_ammo(p);

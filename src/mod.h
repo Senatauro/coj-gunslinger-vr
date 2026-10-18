@@ -134,18 +134,28 @@ bool weapon_use_dir(float out[3]);            // cabeça → mão livre estendid
 void weapon_probe();                          // diagnóstico da arma no coldre do duelo no frame do SHOT
 bool weapon_hand_body(int h, float o[3]);     // mão física h no frame do corpo (cm), false sem pose
 bool weapon_hand_trk(int h, float o[3]);      // mão física h no tracking (cm), false sem pose
+const float* weapon_hand_game(int h);         // mão física h no mundo do jogo (3x4, cm), NULL sem pose
 void weapon_pad(LONG* cur);                   // grip, gatilho e especial da dinamite no pad virtual
 
 // duel.cpp: duelo (e algumas funções de outros arquivos usadas por ele)
 void duel_init();                             // hooks do duelo (só com os hooks do jogador)
 void duel_frame(char* p);                     // log dos estados do duelo, no fim do update
 void duel_tutorial_log(char* p, int path);    // log da dica do duelo depois da câmera FPP (caminho das mãos)
+
+// gatling.cpp: gatling (StationaryCannon) em VR
+bool gatling_on(char* p);                     // montado na gatling (modos 14/15) com a cabeça aplicada
+void gatling_anchor(char* p, const float* cam, float a[3]);  // âncora pela câmera do jogo montado na gatling
+void gatling_lookdir(char* p, float out[3]);  // mira lida pelo controller da gatling (a da mão de apoio)
+float gatling_fire(char* p);                  // gatilho (ação 161) pela manivela; −1 fora da gatling
+bool gatling_muzzle(char* p, float o[3], float d[3]);  // boca e direção da gatling para o Shoot; false fora dela
+void gatling_frame(char* p);                  // mira, manivela, saída e ponto de mira, no fim do update
 bool ladder_busy();                          // player.cpp: escada automática em curso (bloqueia o usar)
 float ladder_fade();                         // player.cpp: escuro da escada automática (0..1)
 float ladder_action(int a);                  // player.cpp: valor das ações 80/81 (subir/descer) na escada automática; −1 = o jogo decide
 bool teleport_pad(LONG* cur);                // weapon.cpp: modo teleporte (stick esquerdo mira o arco); true = o mod cuida do stick
 void teleport_frame(char* p);                // weapon.cpp: antes do OnFrame, executa o teleporte pedido (SetPosition do ator)
 float teleport_fade();                       // weapon.cpp: piscada preta do teleporte (0..1), somada à coleira
+void teleport_request(const float pos[3]);   // weapon.cpp: teste, teleporte direto para um ponto do chão (pad.txt TP)
 bool duel_active(char* p);                    // duelo em VR em curso (controlador ativo e vis do duelo)
 bool duel_body(char* p);                      // vis do duelo no jogador (também na morte e na tela do fim)
 bool duel_bone_pos(int idx, float o[3]);      // weapon.cpp: posição atual de um osso do corpo do duelo

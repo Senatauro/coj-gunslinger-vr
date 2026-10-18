@@ -223,7 +223,8 @@ static DWORD WINAPI hk_xgs(DWORD user, XINPUT_STATE* s) {
 // Script do pad de teste, uma linha por passo: "A 150" (botão por 150 ms), "DOWN+A 100", "WAIT 2000", "SHOT" (print
 // do backbuffer), "RECENTER" (tela VR), "SET <chave> <valor>" ([stereo] em tempo real), "MODE AUTO|CENA|TELA",
 // "LX <-1..1> [ms]" / "LY" / "RX" / "RY" (analógicos) e "LT <0..1> [ms]" / "RT" (gatilhos); sem ms o eixo fica até
-// o próximo comando dele. Depois de ativado, o pad de teste nunca "desconecta".
+// o próximo comando dele. "TP x y z" teleporta o jogador para um ponto do chão do mundo do jogo. Depois de ativado, o
+// pad de teste nunca "desconecta".
 static void run_pad_script(char* text) {
 	static const struct { const char* name; WORD bit; } k_buttons[] = {
 		{"UP", XINPUT_GAMEPAD_DPAD_UP}, {"DOWN", XINPUT_GAMEPAD_DPAD_DOWN}, {"LEFT", XINPUT_GAMEPAD_DPAD_LEFT},
@@ -244,6 +245,11 @@ static void run_pad_script(char* text) {
 		float val;
 		if (!strcmp(keys, "SET") && sscanf(line, "SET %31s %f", key, &val) == 2) {
 			setting_set(key, val);
+			continue;
+		}
+		float tp[3];
+		if (!strcmp(keys, "TP") && sscanf(line, "TP %f %f %f", tp, tp + 1, tp + 2) == 3) {
+			teleport_request(tp), logf("pad: %s", line);
 			continue;
 		}
 		if (!strcmp(keys, "MODE") && sscanf(line, "MODE %15s", word) == 1) {
