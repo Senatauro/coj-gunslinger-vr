@@ -96,6 +96,7 @@ To remove it, delete `d3d9.dll` and the `cojvr` folder from the game folder.
 | X | Reload / use |
 | Y | Weapon menu: hold, point with your left hand, release |
 | Grip | Hold the gun with both hands; point your free hand at a door or item and squeeze to use it; throw dynamite with your arm |
+| Left stick click | Running |
 | Right stick click | Objective; hold: skills; right after throwing dynamite: split the dynamite |
 | Left menu button | Pause |
 
@@ -110,8 +111,8 @@ HUD, aim dot, duels and more). Choices are saved in `cojvr/cojvr.ini` in the VR 
 ## Known issues
 
 - Sometimes the right eye gets out of sync with the left. At the very start of the campaign it shakes until you pick
-  up the first gun.
-- Controller vibration does not work.
+  up the first gun. This is kinda rare and I couldn't trace it yet. If you see this issue, please open an github issue with the description and what you did to make it happen
+- Controller vibration does not work yet.
 - Gatling guns and fixed cannons have no VR version yet (not tested).
 - QTEs still ask for gamepad buttons (in VR, A is melee and Y does not reach the game).
 - Throwing an enemy's dynamite back asks for LB, which the Touch does not have.
