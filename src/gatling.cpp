@@ -232,9 +232,9 @@ void gatling_frame(char* p) {
 	g_gripped |= (ga && !prev[0]) || (gd && !prev[1]);
 	prev[0] = ga, prev[1] = gd;
 	g_free = ga || gd || !g_gripped ? 0 : g_free ? g_free : t;
-	if (g_free && t - g_free >= setting("gat_exit_ms", 1000) / 1000) {
+	if (g_free && t - g_free >= setting("gat_exit_ms", 200) / 1000) {
 		char* c = *(char**)(p + 0x518);
-		logf("gatling: mãos soltas por %.0f ms, saindo", setting("gat_exit_ms", 1000));
+		logf("gatling: mãos soltas por %.0f ms, saindo", setting("gat_exit_ms", 200));
 		if (c) ((void(__thiscall*)(char*, int, float, char))(*(void***)c)[207])(c, 20, 1.f, 0);
 		g_free = 0, g_gripped = false;
 	}
