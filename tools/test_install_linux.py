@@ -6,7 +6,7 @@ import os, subprocess, tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SH = os.path.join(ROOT, "build", "dist", "install-linux.sh")
-NAME = "Call of Juarez: Gunslinger VR"
+NAME = "Call of Juarez Gunslinger VR"
 
 
 def vdf(b):  # leitor independente do binário VDF do Steam

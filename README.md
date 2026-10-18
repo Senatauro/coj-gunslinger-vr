@@ -1,6 +1,6 @@
-# Call of Juarez: Gunslinger VR
+# Call of Juarez Gunslinger VR
 
-An unofficial VR mod for *Call of Juarez: Gunslinger* (Steam): stereo 3D at your headset's refresh rate, 6DoF head
+An unofficial VR mod for *Call of Juarez Gunslinger* (Steam): stereo 3D at your headset's refresh rate, 6DoF head
 and hands, guns in your hands, dynamite thrown with your arm and duels drawn from the holster.
 
 **Version 0.1 is an early test version.** The start of the campaign, the Arcade and the Duel mode are playable, but not
@@ -44,7 +44,7 @@ Not affiliated with Techland or Ubisoft. No game files are included or changed.
 
 ## Requirements
 
-- *Call of Juarez: Gunslinger* from Steam (the current Steam version, 1.0.5.0).
+- *Call of Juarez Gunslinger* from Steam (the current Steam version, 1.0.5.0).
 - SteamVR and a PC VR headset. Tested with a Quest 3 via Steam Link, seated and standing.
 - Linux: Proton Experimental (Steam library > Tools). Start the normal game once with Proton Experimental before
   installing.
@@ -53,7 +53,7 @@ Not affiliated with Techland or Ubisoft. No game files are included or changed.
 ## Install
 
 The installer makes a copy of the game folder called "CoJ Gunslinger VR" next to the original (with hard links, so it
-uses almost no extra disk), puts the mod in the copy and adds **Call of Juarez: Gunslinger VR** to your Steam library.
+uses almost no extra disk), puts the mod in the copy and adds **Call of Juarez Gunslinger VR** to your Steam library.
 The normal game is never modified. Your progress is shared, because saves are in the Steam Cloud.
 
 1. Download the zip from the latest release and extract it anywhere.
@@ -62,7 +62,7 @@ The normal game is never modified. Your progress is shared, because saves are in
    - **Linux:** open a terminal in the extracted folder and run `./install-linux.sh`
 3. Close Steam when the installer asks, then open Steam again.
 
-To play: start SteamVR first, then **Call of Juarez: Gunslinger VR** from your Steam library.
+To play: start SteamVR first, then **Call of Juarez Gunslinger VR** from your Steam library.
 
 **Update:** run the installer of the new version. Your VR options are kept.
 
@@ -74,7 +74,7 @@ copy and the Steam entry.
 This puts the mod in the game folder itself, so the normal game also starts with the mod: in VR when SteamVR is
 running, flat when it is not.
 
-1. In Steam, right-click *Call of Juarez: Gunslinger* > Manage > Browse local files.
+1. In Steam, right-click *Call of Juarez Gunslinger* > Manage > Browse local files.
 2. Copy `d3d9.dll` and the `cojvr` folder from the zip into that folder.
 3. In the game's Properties > General, turn off "Enable the Steam Overlay while in-game" (see
    [Troubleshooting](#troubleshooting)).
@@ -134,7 +134,7 @@ with the Steam Overlay on. The installer's Steam entry already starts the game w
 the overlay off in the game's Properties > General.
 
 **Steam closes, or the game closes, when I press Play with SteamVR running (Linux).** That is Steam's "Desktop Game
-Theatre" for flat games. Start the game from the **Call of Juarez: Gunslinger VR** entry that the installer adds: it is
+Theatre" for flat games. Start the game from the **Call of Juarez Gunslinger VR** entry that the installer adds: it is
 marked as a VR game.
 
 **The installer says Steam is running.** Close Steam from its menu (Steam > Exit), wait a few seconds and press Enter.

@@ -1,13 +1,13 @@
 #!/bin/bash
 # CoJ Gunslinger VR installer for Linux (Steam + Proton).
 # Makes a copy of the game folder next to it ("CoJ Gunslinger VR", hard links: almost no extra disk), puts the mod in
-# the copy and adds "Call of Juarez: Gunslinger VR" to the Steam library. The original game is never modified.
+# the copy and adds "Call of Juarez Gunslinger VR" to the Steam library. The original game is never modified.
 #   ./install-linux.sh              install or update
 #   ./install-linux.sh --uninstall  remove the copy and the Steam entry
 set -euo pipefail
 
 APP_ID=204450
-APP_NAME="Call of Juarez: Gunslinger VR"
+APP_NAME="Call of Juarez Gunslinger VR"
 COPY_DIR="CoJ Gunslinger VR"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 
@@ -148,7 +148,7 @@ install() {
 	rm -f "$DEST/cojvr-launch.sh"
 	cat > "$DEST/cojvr-launch.sh" <<EOF
 #!/bin/sh
-# Call of Juarez: Gunslinger VR launcher (made by install-linux.sh). Start SteamVR before the game.
+# Call of Juarez Gunslinger VR launcher (made by install-linux.sh). Start SteamVR before the game.
 # PROTON_USE_WOW64=1: the 32-bit SteamVR client fails on ext4 (SteamVR-for-Linux #963).
 export PROTON_USE_WOW64="\${PROTON_USE_WOW64:-1}"
 # No Steam overlay: with it the game hangs at the end of a level load.
@@ -191,7 +191,7 @@ while IFS= read -r l; do
 	dir=$(sed -n 's/^[[:space:]]*"installdir"[[:space:]]*"\(.*\)"[[:space:]]*$/\1/p' "$acf")
 	[ -f "$l/steamapps/common/${dir:-CoJ Gunslinger}/CoJGunslinger.exe" ] && { LIB=$l; GAME="$l/steamapps/common/${dir:-CoJ Gunslinger}"; break; }
 done < <(libraries)
-[ -n "$GAME" ] || die "Call of Juarez: Gunslinger is not installed in any Steam library."
+[ -n "$GAME" ] || die "Call of Juarez Gunslinger is not installed in any Steam library."
 DEST="$LIB/steamapps/common/$COPY_DIR"
 [ "$(realpath -m "$DEST")" != "$(realpath "$GAME")" ] || die "the copy would be the game folder itself; nothing was changed."
 printf 'Steam: %s\nGame:  %s\n' "$ROOT" "$GAME"

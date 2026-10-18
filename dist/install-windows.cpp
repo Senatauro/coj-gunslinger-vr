@@ -1,6 +1,6 @@
 // CoJ Gunslinger VR installer and launcher for Windows (same logic as install-linux.sh).
 //   cojvr-setup.exe               install or update: copy of the game next to it (hard links), mod in the copy,
-//                                 "Call of Juarez: Gunslinger VR" in the Steam library; the original game is never modified
+//                                 "Call of Juarez Gunslinger VR" in the Steam library; the original game is never modified
 //   cojvr-setup.exe --uninstall   remove the copy and the Steam entry
 //   cojvr-setup.exe --launch      (the Steam entry) starts the game in the copy as app 204450
 #include <windows.h>
@@ -14,7 +14,7 @@
 using std::string;
 using std::wstring;
 
-static const char* APP_NAME = "Call of Juarez: Gunslinger VR";
+static const char* APP_NAME = "Call of Juarez Gunslinger VR";
 static const wchar_t* COPY_DIR = L"CoJ Gunslinger VR";
 
 static wstring W(const string& s) {
@@ -306,7 +306,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR cmd, int) {
 	SetConsoleOutputCP(CP_UTF8);
 	wstring root = steam_root(), lib, game, here = dir_of(self_path());
 	auto libs = libraries(root);
-	if (!find_game(libs, lib, game)) die("Call of Juarez: Gunslinger is not installed in any Steam library.");
+	if (!find_game(libs, lib, game)) die("Call of Juarez Gunslinger is not installed in any Steam library.");
 	wstring dest = lib + L"\\steamapps\\common\\" + COPY_DIR, marker = dest + L"\\cojvr\\.vr_copy";
 	printf("Steam: %s\nGame:  %s\n", U(root).c_str(), U(game).c_str());
 	if (wcsstr(cmd, L"--uninstall")) {
