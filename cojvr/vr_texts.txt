@@ -38,6 +38,8 @@ DuelTutorial_Draw = When your opponent reaches for his gun, grip your revolver a
 DuelTutorialNew_Hand = When your opponent reaches for his gun, grip your revolver at the holster and draw it, aim with your hand and pull &[RT]& to shoot.
 DuelTutorialNew_Draw = Grip your revolver at the holster to draw, then aim and pull &[RT]& to shoot.
 DuelTutorial_Dodge = Lean your body left or right to dodge.
+[INPUTS_DUEL_SWITCH_BOSS] = your head
+DuelTutorial_SwitchBoss = In a Mexican standoff, look at the other enemy to switch your Focus to him:\nthe marks follow the enemy you look at.
 Hint_Duel_DrawGun = Wait for the signal, then grip your revolver at the holster.
 Duel_Grab_QTE = Grip
 

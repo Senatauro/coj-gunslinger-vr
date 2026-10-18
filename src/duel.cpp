@@ -106,7 +106,8 @@ void __fastcall hk_mg20(char* mg, void*, float dt) {
 	m[0x98 / 4] = 0.025f, m[0x9C / 4] = -0.85f;
 }
 
-// --- Foco por sinais. No Warmup, a cada duel_sign_gap_min..max s um ponto do inimigo (cabeça, mão da arma, coldre)
+// --- Foco por sinais. Do Warmup até o sinal do duelo (estados 3 a 5: Warmup, PreparingToSilence e Silence), a cada
+// duel_sign_gap_min..max s um ponto do inimigo atual (cabeça, mão da arma, coldre)
 // vira o sinal por duel_sign_ms, marcado no próprio ponto pelo anel do "usar" (overlay pequeno no mundo; branco
 // esperando, amarelo segurando, verde ao pegar). O olho do HUD do jogo (G_Eye, bit 0x8 do FUN_00B6E9D0, ponto +0x40
 // do minijogo do olho) não serve: no HUD preso à cabeça ele sai projetado ~14° fora do lugar, como o retículo e o nome
@@ -125,13 +126,20 @@ float rnd01() {
 	x = x * 1103515245u + 12345u;
 	return (x >> 8) / 16777216.f;
 }
-char* duel_enemy(char* d, char* dm) {
-	unsigned i = *(unsigned*)(d + 0x194);
+char* enemy_at(char* dm, unsigned i) {
 	char* e = dm && i < 2 ? *(char**)(dm + 0x40 + i * 0xC) : NULL;
 	return e ? e - 0x2C : NULL;
 }
+char* duel_enemy(char* d, char* dm) { return enemy_at(dm, *(unsigned*)(d + 0x194)); }
+// Inimigos do duelo: m_BossCount da DuelArea (DuelManager+0xC → +0x94). Com 2 é o impasse mexicano (GhostTown na
+// campanha e Sundance Kid no modo Duelo).
+int boss_count(char* dm) {
+	char* a = dm ? *(char**)(dm + 0xC) : NULL;
+	return a ? *(int*)(a + 0x94) : 0;
+}
 float g_focus;   // foco dos sinais: 0..1, só sobe
 int g_sign = -1;  // parte do sinal ativo (−1 = nenhum)
+unsigned g_sign_enemy;  // inimigo do sinal ativo: o alvo do jogo quando o sinal acendeu
 double g_sign_next;
 void signs_reset() { g_focus = 0, g_sign = -1, g_sign_next = now_s() + 1; }
 
@@ -175,8 +183,8 @@ void diff_detect(char* dm) {
 	if (i >= 0) g_diff = i / float(ns - 1);
 	if (j >= 0) g_diff = j / float(nd - 1);
 	if (float f = setting("duel_diff_force", -1); f >= 0) g_diff = f;  // teste: dificuldade fixa
-	logf("duelo: duelo %s (desconcentração %.4f, silêncio %.2f–%.2f s) -> dificuldade %.2f: sinal %.1f° por %.0f ms",
-	     i >= 0 ? k_story[i].name : j >= 0 ? k_dm[j].name : "desconhecido", dc, lo, hi, g_diff,
+	logf("duelo: duelo %s (desconcentração %.4f, silêncio %.2f–%.2f s, %d inimigos) -> dificuldade %.2f: sinal %.1f° por %.0f ms",
+	     i >= 0 ? k_story[i].name : j >= 0 ? k_dm[j].name : "desconhecido", dc, lo, hi, *(int*)(a + 0x94), g_diff,
 	     setting("duel_sign_deg", 2.5f) + (setting("duel_sign_deg_hard", 1.5f) - setting("duel_sign_deg", 2.5f)) * g_diff,
 	     setting("duel_sign_ms", 1400) + (setting("duel_sign_ms_hard", 900) - setting("duel_sign_ms", 1400)) * g_diff);
 }
@@ -206,24 +214,24 @@ void signs(char* d, char* dm, int state) {
 		g_sign = -1, g_sign_next = t + 1;
 		return;
 	}
-	char* en = duel_enemy(d, dm);
-	if (state != 3 || !en) return void(g_sign = -1);  // sinais só no Warmup (estado 3)
+	if (state < 3 || state > 5 || !duel_enemy(d, dm)) return void(g_sign = -1);
 	auto gap = [] { float a = setting("duel_sign_gap_min", 1.5f); return a + rnd01() * (setting("duel_sign_gap_max", 3) - a); };
 	bool fresh = g_sign < 0;
 	if (fresh) {
 		if (t < g_sign_next) return;
 		g_sign = (int)(rnd01() * 3) % 3, off = t + by_diff("duel_sign_ms", 1400, "duel_sign_ms_hard", 900) / 1000, hold = 0;
-	}
+		g_sign_enemy = *(unsigned*)(d + 0x194);
+	} else if (g_sign_enemy != *(unsigned*)(d + 0x194))  // no impasse o alvo trocou (standoff()): o sinal vai com ele
+		return void(g_sign = -1), void(g_sign_next = t + 0.3);
+	char* en = enemy_at(dm, g_sign_enemy);
 	float P[3];
 	bool ok = false;
 	for (const char* nm : parts[g_sign])
-		if (nm && (ok = actor_bone_pos(en, nm, P))) break;
-	if (!ok) return logf("duelo: sinal na %s sem osso no inimigo", names[g_sign]), void(g_sign = -1);
-	if (fresh) {
-		const float* E = enemy_pos(d);
-		logf("duelo: sinal na %s, a %.0f %.0f %.0f cm do inimigo e %.1f m da cabeça", names[g_sign], P[0] - E[0], P[1] - E[1],
-		     P[2] - E[2], sqrtf((P[0] - C[3]) * (P[0] - C[3]) + (P[2] - C[11]) * (P[2] - C[11])) / 100);
-	}
+		if (nm && en && (ok = actor_bone_pos(en, nm, P))) break;
+	if (!ok) return logf("duelo: sinal na %s sem osso no inimigo %u", names[g_sign], g_sign_enemy), void(g_sign = -1);
+	if (fresh)
+		logf("duelo: sinal na %s do inimigo %u (alvo do jogo %u), a %.1f m da cabeça", names[g_sign], g_sign_enemy,
+		     *(unsigned*)(d + 0x194), sqrtf((P[0] - C[3]) * (P[0] - C[3]) + (P[2] - C[11]) * (P[2] - C[11])) / 100);
 	float v[3] = {P[0] - C[3], P[1] - C[7], P[2] - C[11]}, n = sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
 	float ang = acosf(fminf(1, (v[0] * f[0] + v[1] * f[1] + v[2] * f[2]) / n)) * 57.29578f;
 	float deg = by_diff("duel_sign_deg", 2.5f, "duel_sign_deg_hard", 1.5f);
@@ -271,6 +279,48 @@ void aim_hint(char* d, char* dm) {
 		logf("dicas: dica da mira do duelo %s", since ? "concluída olhando o inimigo" : "concluída pelo tempo");
 		tut_action(212), tut_action(210), since = shown = 0;
 	}
+}
+
+// --- Impasse mexicano: olhar o outro inimigo troca o alvo do jogo (+0x194: o inimigo do foco, da câmera do duelo e do
+// G_Eye). O jogo faz a troca pelas ações 216/217 no DuelController::vf207 (slot 207, 0x00ABFD50, thiscall (ação, valor,
+// repetição), ret 0xC), que só aceita valor 1,0 sem repetição, com 2 inimigos e o DuelManager até o Fight (FUN_00AC3730);
+// no pad isso é o LB, que o Touch não tem. Conta como olhar: a frente da cabeça a menos de duel_switch_deg do meio do
+// corpo (entre a cabeça e a pélvis) e mais perto dele que do outro, por duel_switch_ms. ---
+bool enemy_angle(char* en, const float* C, float& ang) {
+	float H[3], B[3];
+	if (!en || !actor_bone_pos(en, "Head", H)) return false;
+	if (actor_bone_pos(en, "Pelvis", B))
+		for (int i = 0; i < 3; i++) H[i] = (H[i] + B[i]) / 2;
+	float v[3] = {H[0] - C[3], H[1] - C[7], H[2] - C[11]}, n = sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]) + 1e-3f;
+	ang = acosf(fminf(1, -(v[0] * C[2] + v[1] * C[6] + v[2] * C[10]) / n)) * 57.29578f;
+	return true;
+}
+// Yaw para o começo do duelo: o inimigo atual ou, no impasse, o meio entre os dois.
+bool yaw_to_start(char* d, char* dm, float& psi) {
+	float A[3], B[3];
+	if (boss_count(dm) < 2 || !actor_bone_pos(enemy_at(dm, 0), "Head", A) || !actor_bone_pos(enemy_at(dm, 1), "Head", B))
+		return yaw_to_enemy(d, psi);
+	const float* C = player_head_cam();
+	float dx = (A[0] + B[0]) / 2 - C[3], dz = (A[2] + B[2]) / 2 - C[11];
+	if (dx * dx + dz * dz < 1) return false;
+	return psi = atan2f(dz, dx) * 57.29578f, true;
+}
+void standoff(char* d, char* dm) {
+	static double since;
+	static int want = -1;
+	if (boss_count(dm) < 2 || *(int*)(dm + 4) > 8 || tut_paused()) return void(want = -1);
+	const float* C = player_head_cam();
+	int best = -1;
+	float best_a = setting("duel_switch_deg", 10), a;
+	for (unsigned i = 0; i < 2; i++)
+		if (enemy_angle(enemy_at(dm, i), C, a) && a < best_a) best = i, best_a = a;
+	if (best < 0 || best == *(int*)(d + 0x194)) return void(want = -1);
+	double t = now_s();
+	if (best != want) want = best, since = t;
+	if (t - since < setting("duel_switch_ms", 300) / 1000) return;
+	((void(__thiscall*)(char*, int, float, char))(*(void***)d)[207])(d, 216 + best, 1.f, 0);
+	logf("duelo: impasse: olhando o inimigo %d (a %.1f°) -> alvo do jogo %d", best, best_a, *(int*)(d + 0x194));
+	want = -1;
 }
 
 // --- Saque = tirar a arma do coldre. Apertar o grip da mão dominante dentro da zona do quadril arma o saque; com o
@@ -342,14 +392,18 @@ void real_speed(char* d, char* dm) {
 	float best = fminf(t1, t2), worst = fmaxf(t1, t2);
 	if (ph == 4) *(float*)(d + 0x58) = worst - s * (worst - best);
 	if (done) return;
-	char* en = duel_enemy(d, dm);
 	float o[3], f[3], H[3], r = setting("duel_aim_cm", 30), best_d = 1e9f;
-	bool ok = en && weapon_barrel(0, o, f) && actor_bone_pos(en, "Head", H);
-	for (int i = 0; ok && i <= 4; i++) {  // ponytail: o corpo do inimigo vira 5 pontos, da cabeça até 70 cm abaixo dela
-		float v[3] = {H[0] - o[0], H[1] - 70 * i / 4.f - o[1], H[2] - o[2]}, k = v[0] * f[0] + v[1] * f[1] + v[2] * f[2];
-		float x = v[0] - f[0] * k, y = v[1] - f[1] * k, z = v[2] - f[2] * k;
-		if (k > 0) best_d = fminf(best_d, sqrtf(x * x + y * y + z * z));
+	bool ok = weapon_barrel(0, o, f), any = false;
+	for (int e = 0; ok && e < 2 && e < boss_count(dm); e++) {  // no impasse, qualquer um dos dois inimigos
+		if (!actor_bone_pos(enemy_at(dm, e), "Head", H)) continue;
+		any = true;
+		for (int i = 0; i <= 4; i++) {  // ponytail: o corpo do inimigo vira 5 pontos, da cabeça até 70 cm abaixo dela
+			float v[3] = {H[0] - o[0], H[1] - 70 * i / 4.f - o[1], H[2] - o[2]}, k = v[0] * f[0] + v[1] * f[1] + v[2] * f[2];
+			float x = v[0] - f[0] * k, y = v[1] - f[1] * k, z = v[2] - f[2] * k;
+			if (k > 0) best_d = fminf(best_d, sqrtf(x * x + y * y + z * z));
+		}
 	}
+	ok = ok && any;
 	bool aim = best_d <= r;
 	static double next_log;
 	if (!aim && now_s() >= next_log)
@@ -550,8 +604,8 @@ bool duel_gun_holstered(char* p) {
 // a cabeça (olhar para baixo só move as mãos, não a cena) e o corpo de 3ª pessoa aparece. A máscara global 0x02E65A98,
 // quando não é zero, é usada no lugar da do preset da DuelArea (FUN_00AC2C40: DuelManager+0xC → +0x68; bits 0x01 foco,
 // 0x02 seguir, 0x04 mira, 0x08 esquiva, 0x10 desonra, 0x20 mão, 0x40 saque, 0x80 impasse). Com duel_hints 1 as dicas
-// aparecem com os textos de VR (tutorial.cpp), menos as que não têm versão VR (duel_hints_off: 0x20 mão, 0x80
-// impasse): a global vira a do preset sem esses bits, ou 0x100 (bit que nenhuma dica usa) se não sobrar nada;
+// aparecem com os textos de VR (tutorial.cpp), menos as que não têm versão VR (duel_hints_off: 0x20 mão, que em VR
+// é o saque real): a global vira a do preset sem esses bits, ou 0x100 (bit que nenhuma dica usa) se não sobrar nada;
 // duel_hints 0 desliga todas. duel_tut_mask (teste) força uma máscara. FUN_00AC4060 (stdcall (DuelController*), ret 4,
 // al) devolve 0 com uma dica na tela. Como as mãos já deram problema com a dica aberta, o log da troca diz por onde
 // elas foram posicionadas (path: 0 weapon_camera, 1 weapon_paused, 2 nenhum).
@@ -561,7 +615,7 @@ unsigned hints_mask(char* p) {
 	if (!setting("duel_vr", 1)) return 0;
 	char* dm = p && setting("duel_hints", 1) ? duel_manager(p) : NULL;
 	char* a = dm ? *(char**)(dm + 0xC) : NULL;
-	unsigned k = a ? *(unsigned*)(a + 0x68) & ~(unsigned)setting("duel_hints_off", 0xA0) : 0;
+	unsigned k = a ? *(unsigned*)(a + 0x68) & ~(unsigned)setting("duel_hints_off", 0x20) : 0;
 	return k ? k : 0x100;
 }
 void duel_tutorial_log(char* p, int path) {
@@ -606,10 +660,10 @@ void duel_frame(char* p) {
 	if (s != state) {
 		logf("duelo: DuelManager %p estado %s -> %s", (void*)dm, name_of(k_state, 15, state), name_of(k_state, 15, s));
 		state = s;
-		// No começo do duelo a cabeça vira para o inimigo: sem TELA antes, o alinhamento da volta da TELA (player.cpp)
-		// não roda.
+		// No começo do duelo a cabeça vira para o inimigo (no impasse, para o meio dos dois): sem TELA antes, o
+		// alinhamento da volta da TELA (player.cpp) não roda.
 		float psi;
-		if ((s == 1 || s == 3) && setting("duel_vr", 1) && yaw_to_enemy(*(char**)(p + 0x580), psi)) player_face(psi);
+		if ((s == 1 || s == 3) && setting("duel_vr", 1) && yaw_to_start(*(char**)(p + 0x580), dm, psi)) player_face(psi);
 		if (s == 3) signs_reset(), diff_detect(dm);
 	}
 	if (!d) return;
@@ -617,7 +671,7 @@ void duel_frame(char* p) {
 	if (a != active) logf("duelo: DuelController %p %s", (void*)d, a ? "ativo" : "inativo"), active = a;
 	if (!a) return;
 	if (duel_active(p) && player_head_frame()) {
-		draw_gesture(d), dodge(d), heads_push(), real_speed(d, dm);
+		draw_gesture(d), dodge(d), heads_push(), real_speed(d, dm), standoff(d, dm);
 		if (setting("duel_signs", 1)) signs(d, dm, s);
 	}
 	if (duel_active(p)) aim_hint(d, dm);
