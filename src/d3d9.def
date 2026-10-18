@@ -1,0 +1,20 @@
+LIBRARY d3d9.dll
+EXPORTS
+  Direct3DShaderValidatorCreate9=stub_Direct3DShaderValidatorCreate9 @24
+  PSGPError=stub_PSGPError @25
+  PSGPSampleTexture=stub_PSGPSampleTexture @26
+  D3DPERF_BeginEvent=stub_D3DPERF_BeginEvent @27
+  D3DPERF_EndEvent=stub_D3DPERF_EndEvent @28
+  D3DPERF_GetStatus=stub_D3DPERF_GetStatus @29
+  D3DPERF_QueryRepeatFrame=stub_D3DPERF_QueryRepeatFrame @30
+  D3DPERF_SetMarker=stub_D3DPERF_SetMarker @31
+  D3DPERF_SetOptions=stub_D3DPERF_SetOptions @32
+  D3DPERF_SetRegion=stub_D3DPERF_SetRegion @33
+  DebugSetLevel=stub_DebugSetLevel @34
+  DebugSetMute=stub_DebugSetMute @35
+  Direct3D9EnableMaximizedWindowedModeShim=stub_Direct3D9EnableMaximizedWindowedModeShim @36
+  Direct3DCreate9=stub_Direct3DCreate9 @37
+  Direct3DCreate9Ex=stub_Direct3DCreate9Ex @38
+  Direct3DCreate9On12=stub_Direct3DCreate9On12 @20
+  Direct3DCreate9On12Ex=stub_Direct3DCreate9On12Ex @21
+  Direct3D9ForceHybridEnumeration=stub_Direct3D9ForceHybridEnumeration @16 NONAME PRIVATE

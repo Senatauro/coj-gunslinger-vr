@@ -1,0 +1,45 @@
+# Frases de VR das dicas do jogo. Com o VR ligado, o mod troca o texto destas chaves pela frase daqui.
+# Formato: Chave = frase. Linhas que começam com # são comentários; apagar a linha de uma chave volta ao texto do jogo.
+# \n quebra a linha. Glifos do próprio jogo: &[A]& &[B]& &[X]& &[Y]& &[LT]& &[RT]& &[LB]& &[RB]& &[L3]& &[R3]&
+# (clique dos sticks) &[LThumb]& &[RThumb]& (sticks) &[Start]& &[Back]& &[Dpad]&.
+# As mudanças valem no próximo lançamento do jogo. O make install copia este arquivo para a pasta do jogo.
+# Botões do VR durante o jogo em 3D: A = corpo a corpo, B = Concentração, stick direito para cima = pular e para baixo =
+# agachar, clique do stick direito = objetivo (segurar: habilidades), Y = menu de armas, grip direito no cinto = dinamite.
+
+Hint_Melee = Press &[A]& or swing your hand to melee.
+Clock_n = You can eliminate enemies using melee hit. Press &[A]& or swing your hand to melee.
+Hint_Key_Test = Push &[RThumb]& up to jump.
+Hint_Crouch = Crouch down, or push &[RThumb]& down, to duck.
+Hint_Sprint = Click &[L3]& to sprint.
+Hint_Detective = Click &[R3]& to see the current objective.
+Hint_CMUsage = Press &[B]& to enter Concentration.
+Hint_CMStart = Press &[B]& to enter Concentration.
+Hint_CMBreak = Press &[B]& to end Concentration.
+Hint_DoorBreach = Hold &[A]& to breach the door.
+Hint_SOD_$ = Avoid the bullet: lean your body left or right to dodge.
+Hint_SOD_P = Avoid the bullet: lean your body left or right to dodge.
+Hint_FirstDynamite = Grab a stick of dynamite from your belt with the right grip, then throw it with your arm.
+Hint_Dynamite = Grab dynamite from your belt with the right grip and throw it.
+Hint_WeaponsSwitch = Hold &[Y]&, point at a weapon and let go to change weapon.
+Hint_FastWeaponSwitch = Hold &[Y]&, point at a weapon and let go to switch weapons.
+Hint_WeaponsChange = Hold &[Y]& to change weapons.
+Hint_WeaponsChange_S = Hold &[Y]& to change weapons.
+Hint_Akimbo = Hold &[Y]& and point at Akimbo to dual wield.
+SkillTutorial_Prompt = You've just leveled up!\nHold &[R3]& to open the Skills Menu.
+Hint_SkillUnspentPoints = You have unspent skill points. Hold &[R3]& to get new skills!
+Hud_UpgradesAvailable = Hold &[R3]& to open the Skills Menu
+# Duelo: o foco vem da cabeça (olhar para os sinais), o saque do grip no coldre e a esquiva do corpo.
+[INPUTS_DUEL_AIM] = your head
+[INPUTS_DUEL_DODGE] = your body (lean left or right)
+DuelTutorial_ReticuleMinigame1 = Keep your enemy in focus:\nlook straight at the marks that light up on him.
+DuelTutorial_Aim = Look at your opponent to aim.
+DuelTutorial_TrackEnemy = Keep looking at your opponent as he moves.
+DuelTutorial_Draw = When your opponent reaches for his gun, grip your revolver at the holster and draw it, aim with your hand and press &[RT]& to shoot.
+DuelTutorialNew_Hand = When your opponent reaches for his gun, grip your revolver at the holster and draw it, aim with your hand and pull &[RT]& to shoot.
+DuelTutorialNew_Draw = Grip your revolver at the holster to draw, then aim and pull &[RT]& to shoot.
+DuelTutorial_Dodge = Lean your body left or right to dodge.
+Hint_Duel_DrawGun = Wait for the signal, then grip your revolver at the holster.
+Duel_Grab_QTE = Grip
+
+# Menu de pausa: texto do botão que substitui o "Unlock Full Game" (o clique abre a página de relato no computador).
+Menu_UnlockFullGame_$ = Report a bug / send feedback (opens on the PC)

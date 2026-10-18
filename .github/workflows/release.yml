@@ -1,0 +1,54 @@
+# Every push to main builds the mod and publishes a release v<major.minor>.<n>, where major.minor comes from
+# src/mod.h and n counts the builds. The mod checks the latest release on start and shows "Update available".
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    # Same toolchain as the development machine (Debian 13, MinGW GCC 14).
+    container: debian:trixie
+    steps:
+      - name: Tools
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends g++-mingw-w64-i686-win32 make zip curl ca-certificates git gh python3
+
+      - uses: actions/checkout@v4
+
+      - name: DXVK 3.1.1 and OpenVR 2.15.6
+        run: |
+          mkdir -p deps
+          curl -fsSL https://github.com/doitsujin/dxvk/releases/download/v3.1.1/dxvk-3.1.1.tar.gz | tar -xz -C deps
+          curl -fsSL -o deps/openvr_api.dll https://github.com/ValveSoftware/openvr/raw/v2.15.6/bin/win32/openvr_api.dll
+          sha256sum -c - <<'SUMS'
+          265888c31ca78dffa290c39cb7e50bfb02762590e41927906e46fb32f01497fa  deps/dxvk-3.1.1/x32/d3d9.dll
+          ab696e4f218a95b3e396bc310f9fe6485df48c99c0969762083212b1e1f025a6  deps/openvr_api.dll
+          SUMS
+
+      - name: Version
+        run: |
+          base=$(sed -n 's/.*define COJVR_VERSION "\([0-9]*\.[0-9]*\)\..*/\1/p' src/mod.h)
+          echo "VERSION=$base.$(( ${{ github.run_number }} - 1 ))" >> "$GITHUB_ENV"
+
+      - name: Build
+        run: make dist VERSION="$VERSION" DXVK_DLL=deps/dxvk-3.1.1/x32/d3d9.dll OPENVR_DLL=deps/openvr_api.dll
+
+      - name: Test the Linux installer
+        run: python3 tools/test_install_linux.py
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git log -1 --format=%B > notes.txt
+          gh release create "v$VERSION" "build/cojvr-$VERSION.zip" "build/cojvr-$VERSION.zip.sha256" \
+            --title "v$VERSION" --notes-file notes.txt --target "$GITHUB_SHA"

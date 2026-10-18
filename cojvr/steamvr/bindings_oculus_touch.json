@@ -1,0 +1,137 @@
+{
+ "action_manifest_version": 0,
+ "controller_type": "oculus_touch",
+ "name": "CoJ VR (Touch)",
+ "description": "Touch -> virtual gamepad: sticks, triggers, A/B/X/Y, menu = Start, grips hold the dynamite; in VR scenes the mod remaps A = melee, B = Concentration, right stick up/down = jump/crouch",
+ "bindings": {
+  "/actions/main": {
+   "sources": [
+    {
+     "path": "/user/hand/left/input/joystick",
+     "mode": "joystick",
+     "inputs": {
+      "position": {
+       "output": "/actions/main/in/move"
+      },
+      "click": {
+       "output": "/actions/main/in/ls"
+      }
+     }
+    },
+    {
+     "path": "/user/hand/right/input/joystick",
+     "mode": "joystick",
+     "inputs": {
+      "position": {
+       "output": "/actions/main/in/look"
+      },
+      "click": {
+       "output": "/actions/main/in/rs"
+      }
+     }
+    },
+    {
+     "path": "/user/hand/left/input/trigger",
+     "mode": "trigger",
+     "inputs": {
+      "pull": {
+       "output": "/actions/main/in/lt"
+      }
+     }
+    },
+    {
+     "path": "/user/hand/right/input/trigger",
+     "mode": "trigger",
+     "inputs": {
+      "pull": {
+       "output": "/actions/main/in/rt"
+      }
+     }
+    },
+    {
+     "path": "/user/hand/right/input/a",
+     "mode": "button",
+     "inputs": {
+      "click": {
+       "output": "/actions/main/in/a"
+      }
+     }
+    },
+    {
+     "path": "/user/hand/right/input/b",
+     "mode": "button",
+     "inputs": {
+      "click": {
+       "output": "/actions/main/in/b"
+      }
+     }
+    },
+    {
+     "path": "/user/hand/left/input/x",
+     "mode": "button",
+     "inputs": {
+      "click": {
+       "output": "/actions/main/in/x"
+      }
+     }
+    },
+    {
+     "path": "/user/hand/left/input/y",
+     "mode": "button",
+     "inputs": {
+      "click": {
+       "output": "/actions/main/in/y"
+      }
+     }
+    },
+    {
+     "path": "/user/hand/left/input/system",
+     "mode": "button",
+     "inputs": {
+      "click": {
+       "output": "/actions/main/in/start"
+      }
+     }
+    },
+    {
+     "path": "/user/hand/left/input/grip",
+     "mode": "trigger",
+     "inputs": {
+      "click": {
+       "output": "/actions/main/in/grip_l"
+      }
+     }
+    },
+    {
+     "path": "/user/hand/right/input/grip",
+     "mode": "trigger",
+     "inputs": {
+      "click": {
+       "output": "/actions/main/in/grip_r"
+      }
+     }
+    }
+   ],
+   "skeleton": [
+    {
+     "output": "/actions/main/in/skeleton_left",
+     "path": "/user/hand/left/input/skeleton/left"
+    },
+    {
+     "output": "/actions/main/in/skeleton_right",
+     "path": "/user/hand/right/input/skeleton/right"
+    }
+   ],
+   "haptics": [
+    {
+     "output": "/actions/main/out/haptic_left",
+     "path": "/user/hand/left/output/haptic"
+    },
+    {
+     "output": "/actions/main/out/haptic_right",
+     "path": "/user/hand/right/output/haptic"
+    }
+   ]
+  }
+ }
+}

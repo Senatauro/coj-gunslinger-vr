@@ -1,0 +1,37 @@
+name: Bug report
+description: Something went wrong in VR (a crash, a freeze, a broken control, something looks wrong).
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you saw, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: where
+    attributes:
+      label: Where in the game?
+      description: Story chapter, Arcade map or duel, and what you were doing (e.g. "right after breaking a door with melee").
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Mod version
+      description: Shown in the first line of cojvr/cojvr.log (e.g. 0.1.0).
+  - type: input
+    id: setup
+    attributes:
+      label: Headset and system
+      description: e.g. "Quest 3 via Steam Link, Linux (Proton Experimental)" or "Index, Windows 11".
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: >-
+        Drag the file cojvr/cojvr.log here. It is in the "CoJ Gunslinger VR" folder of your Steam library
+        (steamapps/common/CoJ Gunslinger VR/cojvr/cojvr.log).

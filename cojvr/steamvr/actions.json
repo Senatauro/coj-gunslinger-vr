@@ -1,0 +1,144 @@
+{
+ "default_bindings": [
+  {
+   "controller_type": "oculus_touch",
+   "binding_url": "bindings_oculus_touch.json"
+  }
+ ],
+ "actions": [
+  {
+   "name": "/actions/main/in/move",
+   "type": "vector2"
+  },
+  {
+   "name": "/actions/main/in/look",
+   "type": "vector2"
+  },
+  {
+   "name": "/actions/main/in/lt",
+   "type": "vector1"
+  },
+  {
+   "name": "/actions/main/in/rt",
+   "type": "vector1"
+  },
+  {
+   "name": "/actions/main/in/a",
+   "type": "boolean"
+  },
+  {
+   "name": "/actions/main/in/b",
+   "type": "boolean"
+  },
+  {
+   "name": "/actions/main/in/x",
+   "type": "boolean"
+  },
+  {
+   "name": "/actions/main/in/y",
+   "type": "boolean"
+  },
+  {
+   "name": "/actions/main/in/lb",
+   "type": "boolean"
+  },
+  {
+   "name": "/actions/main/in/rb",
+   "type": "boolean"
+  },
+  {
+   "name": "/actions/main/in/ls",
+   "type": "boolean"
+  },
+  {
+   "name": "/actions/main/in/rs",
+   "type": "boolean"
+  },
+  {
+   "name": "/actions/main/in/start",
+   "type": "boolean"
+  },
+  {
+   "name": "/actions/main/in/back",
+   "type": "boolean"
+  },
+  {
+   "name": "/actions/main/in/dpad_up",
+   "type": "boolean"
+  },
+  {
+   "name": "/actions/main/in/dpad_down",
+   "type": "boolean"
+  },
+  {
+   "name": "/actions/main/in/dpad_left",
+   "type": "boolean"
+  },
+  {
+   "name": "/actions/main/in/dpad_right",
+   "type": "boolean"
+  },
+  {
+   "name": "/actions/main/in/skeleton_left",
+   "type": "skeleton",
+   "skeleton": "/skeleton/hand/left"
+  },
+  {
+   "name": "/actions/main/in/skeleton_right",
+   "type": "skeleton",
+   "skeleton": "/skeleton/hand/right"
+  },
+  {
+   "name": "/actions/main/out/haptic_left",
+   "type": "vibration"
+  },
+  {
+   "name": "/actions/main/out/haptic_right",
+   "type": "vibration"
+  },
+  {
+   "name": "/actions/main/in/grip_l",
+   "type": "boolean"
+  },
+  {
+   "name": "/actions/main/in/grip_r",
+   "type": "boolean"
+  }
+ ],
+ "action_sets": [
+  {
+   "name": "/actions/main",
+   "usage": "leftright"
+  }
+ ],
+ "localization": [
+  {
+   "language_tag": "en_US",
+   "/actions/main": "Gameplay",
+   "/actions/main/in/move": "Move",
+   "/actions/main/in/look": "Turn (left/right), Concentration (up), melee (down)",
+   "/actions/main/in/lt": "Fire left-hand weapon",
+   "/actions/main/in/rt": "Fire right-hand weapon",
+   "/actions/main/in/a": "Jump",
+   "/actions/main/in/b": "Crouch",
+   "/actions/main/in/x": "Reload / use",
+   "/actions/main/in/y": "Weapon menu (hold, point, release)",
+   "/actions/main/in/lb": "Dynamite",
+   "/actions/main/in/rb": "Concentration",
+   "/actions/main/in/ls": "Sprint",
+   "/actions/main/in/rs": "Concentration / dynamite special",
+   "/actions/main/in/start": "Pause menu",
+   "/actions/main/in/back": "Skills / back",
+   "/actions/main/in/dpad_up": "Select long gun",
+   "/actions/main/in/dpad_down": "Select akimbo revolvers",
+   "/actions/main/in/dpad_left": "Select dynamite",
+   "/actions/main/in/dpad_right": "Select revolver",
+   "/actions/main/out/haptic_left": "Left hand vibration",
+   "/actions/main/out/haptic_right": "Right hand vibration",
+   "/actions/main/in/grip_l": "Left grip (support weapon, use objects)",
+   "/actions/main/in/grip_r": "Right grip (throw dynamite, use objects)",
+   "/actions/main/in/skeleton_left": "Left hand fingers",
+   "/actions/main/in/skeleton_right": "Right hand fingers"
+  }
+ ]
+}

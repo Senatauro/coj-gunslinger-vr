@@ -1,0 +1,6 @@
+build/
+.neuralmind/
+docs/
+knowledge/
+MODLOG.md
+STATUS.md
