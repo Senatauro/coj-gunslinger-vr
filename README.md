@@ -21,7 +21,11 @@ Not affiliated with Techland or Ubisoft. No game files are included or changed.
 - **World:** open doors and pick items by pointing your free hand and squeezing the grip; ladders with one button.
 - **Interface:** the game's HUD in front of you, ammo on your wrist, a 3D pause menu, cutscenes and menus on a cinema
   screen.
-- **Duels in VR:** draw from the holster with the grip, focus by catching signs on the enemy, dodge for real.
+- **Duels in VR:** draw from the holster with the grip, focus by catching signs on the enemy, dodge for real. In a
+  Mexican standoff, look at the other enemy to switch your focus to him.
+- **Gatling guns in VR:** squeeze the grip on the gatling to use it from where you stand; hold it with one hand to aim
+  and turn the crank with the other to fire (the faster you turn, the faster it shoots); let go with both hands to
+  leave.
 - **Arcade and Duel mode** work too.
 - **In-game hints** describe the VR gesture instead of the gamepad button (most of them).
 - **22 VR options** in Options > Game; controls can be remapped in SteamVR's controller bindings.
@@ -32,9 +36,8 @@ Not affiliated with Techland or Ubisoft. No game files are included or changed.
 
 - The rest of the campaign's scripted moments in VR (some hints, throwing an enemy's dynamite back, forced camera
   moments).
-- Mexican standoff in duels; a more arcade-like duel focus.
+- A more arcade-like duel focus.
 - QTEs replaced by real hand actions in VR.
-- Gatling guns and fixed cannons in VR.
 - Controller vibration.
 - Height calibration and character size.
 - Pointing at menus with the controller.
@@ -100,7 +103,8 @@ To remove it, delete `d3d9.dll` and the `cojvr` folder from the game folder.
 | Right stick click | Objective; hold: skills; right after throwing dynamite: split the dynamite |
 | Left menu button | Pause |
 
-With your body: crouch for real, lean to dodge in Sense of Death and in duels, draw from the holster in duels.
+With your body: crouch for real, lean to dodge in Sense of Death and in duels, draw from the holster in duels, aim the
+gatling and turn its crank.
 In menus and on the cinema screen, A confirms and B goes back.
 
 ## VR options
@@ -113,12 +117,13 @@ HUD, aim dot, duels and more). Choices are saved in `cojvr/cojvr.ini` in the VR 
 - Sometimes the right eye gets out of sync with the left. At the very start of the campaign it shakes until you pick
   up the first gun. This is kinda rare and I couldn't trace it yet. If you see this issue, please open an github issue with the description and what you did to make it happen
 - Controller vibration does not work yet.
-- Gatling guns and fixed cannons have no VR version yet (not tested).
+- Gatling guns were tested in the Arcade (Coffeyville); the campaign ones on the moving train and steamboat are not
+  tested yet.
 - QTEs still ask for gamepad buttons (in VR, A is melee and Y does not reach the game).
 - Throwing an enemy's dynamite back asks for LB, which the Touch does not have.
 - Some hints still mention gamepad buttons.
 - A cutscene that starts while you are physically turned away can appear behind you.
-- Duels: no Mexican standoff in VR yet; focus by "signs" is temporary.
+- Duels: focus by "signs" is temporary.
 - No height calibration and only one character size for now.
 - Only Oculus Touch bindings are included.
 - Arcade and Duel scores made in VR are not uploaded to the online leaderboards (on purpose).
