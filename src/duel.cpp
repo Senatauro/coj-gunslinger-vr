@@ -249,7 +249,8 @@ void signs(char* d, char* dm, int state) {
 		vr_reticle(3, kg, n / (100 * setting("world_scale", 1)) * 2 * tanf(setting("duel_gaze_deg", 1.2f) * 0.01745329f), white);
 	}
 	if (hold > 0 && t - hold >= setting("duel_sign_hold_ms", 500) / 1000) {
-		g_focus = fminf(1, g_focus + setting("duel_sign_gain", 0.34f));
+		// no impasse a espera é bem mais longa (Sundance: 9–13 s de silêncio), então cada sinal enche menos o foco
+		g_focus = fminf(1, g_focus + (boss_count(dm) >= 2 ? setting("duel_sign_gain_standoff", 0.15f) : setting("duel_sign_gain", 0.34f)));
 		logf("duelo: sinal na %s pego (foco %.2f)", names[g_sign], g_focus);
 		memcpy(flash_k, k, sizeof k), flash_w = w, flash = t + 0.3;
 		g_sign = -1, g_sign_next = t + gap();
