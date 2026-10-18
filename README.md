@@ -96,7 +96,7 @@ To remove it, delete `d3d9.dll` and the `cojvr` folder from the game folder.
 | Triggers | Fire the gun in that hand |
 | A | Melee (a quick punch with your hand also works) |
 | B | Concentration |
-| X | Reload / use |
+| X | Reload (guns never reload by themselves in VR) / use |
 | Y | Weapon menu: hold, point with your left hand, release |
 | Grip | Hold the gun with both hands; point your free hand at a door or item and squeeze to use it; throw dynamite with your arm |
 | Left stick click | Running |
