@@ -195,7 +195,8 @@ struct Gun {
 	bool thumb, long_done;  // polegar apertado; o segurar já virou abrir/fechar
 	double t_thumb;       // quando o polegar desceu (ms)
 	bool fan_block;       // passada do fanning já contada (rearma quando a mão volta ou sai)
-	volatile LONG thumb_req, click_req;  // pedidos da thread do input; o update executa
+	volatile LONG thumb_req, click_req, open_req;  // pedidos da thread do input; o update executa
+	bool reload_btn;      // botão de recarga do jogo (X) apertado, com a arma na outra mão
 	int b_port;           // rifle: elevador do cartucho (de onde o estojo sai, por cima)
 	struct Fly {          // estojo voando: osso, início (ms), posição inicial (mundo, cm) e velocidade (cm/s)
 		int bone;
@@ -546,10 +547,17 @@ void loader(char* p, int k) {
 			G.am->st[ch] = EMPTY;
 			sound(snd(G, G.kind == K_SHOTGUN ? "turn" : "insert"), 0.6f), haptic(o, 0.4f);
 			logr("mão lógica %d: %s tirad%s da câmara %d", k, k_st[G.held], G.held == LIVE ? "a" : "o", ch);
-		} else if (weapon_hand_body(o, b) && b[1] < setting("real_pouch_y", -45) && res && *res > 0 &&
-		           (G.kind == K_LEVER ? mag(G.item) < cap_of(G.item) : memchr(G.am->st, EMPTY, G.am->n) != NULL)) {
-			G.held = LIVE, G.away = true, haptic(o, 0.3f);
-			logr("mão lógica %d: bala pega na cintura (reserva %d)", k, *res);
+		} else if (res && *res > 0 && (G.kind == K_LEVER ? mag(G.item) < cap_of(G.item) : live_of(*G.am) < G.am->n)) {
+			// Onde pegar a bala: abaixo do peito (cinto e bolsos; sentado, o Carlos pegou a 25–33 cm abaixo dos olhos) ou,
+			// com a arma aberta, qualquer grip longe da arma. No rifle (que não abre) a mão de apoio no guarda-mão não conta.
+			const float* Hg = weapon_hand_game(weapon_phys(k));
+			bool low = weapon_hand_body(o, b) && b[1] < setting("real_pouch_y", -20);
+			bool off = G.kind != K_LEVER && Hg && sqrtf((Hg[3] - H[3]) * (Hg[3] - H[3]) + (Hg[7] - H[7]) * (Hg[7] - H[7]) +
+			                                            (Hg[11] - H[11]) * (Hg[11] - H[11])) > setting("real_take_cm", 20);
+			if ((low || off) && !weapon_supported(k)) {
+				G.held = LIVE, G.away = true, haptic(o, 0.3f);
+				logr("mão lógica %d: bala pega %s (reserva %d)", k, low ? "na cintura" : "longe da arma", *res);
+			}
 		}
 	}
 	if (G.held != LIVE) return;
@@ -627,6 +635,7 @@ void real_frame(char* p, float dt) {
 		sync(G, k);
 		int h = weapon_phys(k);
 		if (InterlockedExchange(&G.thumb_req, 0)) thumb_action(p, k);
+		if (InterlockedExchange(&G.open_req, 0)) toggle_open(p, k);  // X (o botão de recarga do jogo) abre e fecha
 		if (G.thumb && !G.long_done && now_ms() - G.t_thumb >= setting("real_long_ms", 450)) G.long_done = true, toggle_open(p, k);
 		const char* fk = h ? "real_thumb_l" : "real_thumb_r";  // teste sem headset: polegar e polegar segurado por SET
 		if (setting(fk, 0)) setting_set(fk, 0), thumb_action(p, k);
@@ -724,6 +733,13 @@ WORD real_buttons(WORD vr) {
 		eat |= bit;
 		if (down && !G.thumb) G.t_thumb = t, G.long_done = false, InterlockedExchange(&G.thumb_req, 1);
 		G.thumb = down;
+		// Arma só na direita: o X (recarga do jogo, na mão esquerda livre) abre e fecha a arma, como atalho do segurar o A.
+		bool other = active(p, 1 - k) && weapon_phys(1 - k) == 1;
+		if (weapon_phys(k) == 0 && !other) {
+			bool x = vr & XINPUT_GAMEPAD_X;
+			if (x && !G.reload_btn) InterlockedExchange(&G.open_req, 1);
+			G.reload_btn = x, eat |= XINPUT_GAMEPAD_X;
+		}
 	}
 	return eat;
 }
