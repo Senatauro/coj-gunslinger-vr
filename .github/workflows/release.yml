@@ -1,9 +1,14 @@
-# Every push to main builds the mod and publishes a release v<major.minor>.<n>, where major.minor comes from
-# src/mod.h and n counts the builds. The mod checks the latest release on start and shows "Update available".
+# Every pull request merged into main builds the mod and publishes a release v<major.minor>.<n>, where major.minor
+# comes from src/mod.h and n is this workflow's run number (a PR closed without merging also takes one). Direct pushes
+# to main publish nothing. The release notes are the PR title and description. The mod checks the latest release on
+# start and shows "Update available".
 name: Release
 
 on:
-  push:
+  # pull_request_target gets a write token also for PRs from forks; it is safe here because the job only runs after the
+  # merge and builds the merge commit, which is already in main.
+  pull_request_target:
+    types: [closed]
     branches: [main]
 
 permissions:
@@ -11,6 +16,7 @@ permissions:
 
 jobs:
   release:
+    if: github.event.pull_request.merged
     runs-on: ubuntu-latest
     # Same toolchain as the development machine (Debian 13, MinGW GCC 14).
     container: debian:trixie
@@ -21,6 +27,8 @@ jobs:
           apt-get install -y --no-install-recommends g++-mingw-w64-i686-win32 make zip curl ca-certificates git gh python3
 
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
 
       - name: DXVK 3.1.1 and OpenVR 2.15.6
         run: |
@@ -47,8 +55,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
+          # Via env, never inside the script: the PR text is free text.
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          SHA: ${{ github.event.pull_request.merge_commit_sha }}
         run: |
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          git log -1 --format=%B > notes.txt
+          printf '%s\n\n%s\n' "$PR_TITLE" "$PR_BODY" > notes.txt
           gh release create "v$VERSION" "build/cojvr-$VERSION.zip" "build/cojvr-$VERSION.zip.sha256" \
-            --title "v$VERSION" --notes-file notes.txt --target "$GITHUB_SHA"
+            --title "v$VERSION" --notes-file notes.txt --target "$SHA"
