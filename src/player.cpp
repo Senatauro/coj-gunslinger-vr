@@ -524,6 +524,9 @@ void __fastcall hk_mcvf200(char* mc, void*, float dt) {
 		float k = setting("move_speed", 0.75f);
 		v[0] *= k, v[1] *= k, v[2] *= k;
 	}
+	// No Sense of Death o stick que a inclinação da cabeça empurra só escolhe o lado da esquiva; o Move continua ativo
+	// no modo 30 e, sem isto, o corpo corria de 1 a 10 m para o lado enquanto a cabeça ficava inclinada.
+	if (p && mc == *(char**)(p + 0x4F0) && player_dodge()) v[0] = v[2] = 0;
 	static bool who;
 	if (p && !who && (v[0] || v[2])) who = true, logf("jogador: MoveController %p, PlayerDI+0x4F0 %p", (void*)mc, *(void**)(p + 0x4F0));
 	static int n;
@@ -705,7 +708,7 @@ void player_update_end(char* lvl) {
 		int m = *(int*)(p + 0x5A8), f = (*(unsigned char*)(p + 0x730) & 4) != 0;
 		if (m != mode) logf("modo: modo do jogador %d -> %d", mode, m), mode = m;
 		if (f != fixed) logf("modo: câmera fixa por script %s", f ? "ligada" : "desligada"), fixed = f;
-		duel_frame(p), gatling_frame(p);
+		duel_frame(p), gatling_frame(p), qte_frame(p);
 		// Teste: SET god 1 deixa o jogador invencível (vida PlayerDI+0x8E4 de volta a 1000 a cada frame; o máximo do jogo
 		// é 130, então nenhum dano de um frame chega a zero e o Sense of Death não dispara).
 		if (setting("god", 0)) *(float*)(p + 0x8E4) = fmaxf(*(float*)(p + 0x8E4), 1000);

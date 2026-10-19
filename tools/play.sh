@@ -20,6 +20,9 @@ running() {  # o jogo já está aberto? (mesmo filtro do stop)
 	return 1
 }
 if running; then echo "o CoJ já está aberto: feche antes (tools/play.sh stop)"; exit 1; fi
+# Outro jogo da Steam aberto (o reaper do SteamVR, AppId 250820, não conta): não lançar por cima dele.
+other=$(pgrep -af 'reaper SteamLaunch AppId=' | grep -v 'AppId=250820' | sed -n 's/.*AppId=\([0-9]*\).*/\1/p' | head -1)
+if [ -n "$other" ] && [ -z "$COJ_FORCE" ]; then echo "outro jogo da Steam aberto (AppId $other): não lançado (COJ_FORCE=1 ignora)"; exit 1; fi
 wait_log() {  # wait_log <padrão> <timeout em s>: espera o padrão aparecer no cojvr.log
 	i=0
 	until grep -q "$1" "$LOG" 2>/dev/null; do
