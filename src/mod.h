@@ -130,6 +130,7 @@ void weapon_camera(bool paused = false);      // depois da câmera FPP, com a ca
 void weapon_paused();                         // mesmo ponto, na pausa em 3D (tela do fim do duelo)
 bool weapon_muzzle(float out[3]);             // cano da mão do Shoot em curso (false fora do Shoot do jogador)
 bool weapon_barrel(int k, float pos[3], float dir[3]);  // cano e eixo da arma da mão lógica k no frame
+float weapon_trigger(int k);                  // gatilho físico da arma da mão lógica k (0 sem arma)
 bool weapon_use_dir(float out[3]);            // cabeça → mão livre estendida (false: fica o olhar)
 void weapon_probe();                          // diagnóstico da arma no coldre do duelo no frame do SHOT
 bool weapon_hand_body(int h, float o[3]);     // mão física h no frame do corpo (cm), false sem pose
@@ -149,6 +150,7 @@ void gatling_lookdir(char* p, float out[3]);  // mira lida pelo controller da ga
 float gatling_fire(char* p);                  // gatilho (ação 161) pela manivela; −1 fora da gatling
 bool gatling_muzzle(char* p, float o[3], float d[3]);  // boca e direção da gatling para o Shoot; false fora dela
 void gatling_frame(char* p);                  // mira, manivela, saída e ponto de mira, no fim do update
+void qte_frame(char* p);                      // qte.cpp: QTE em VR (o botão certo vai sozinho), no fim do update
 void gatling_camera(char* p);                 // depois da câmera FPP: mãos visíveis montado; a manivela segue a mão
 bool gatling_grip(int side, const float* T, float out[12]);  // Holder da mão física side presa no cabo da manivela
 bool ladder_busy();                          // player.cpp: escada automática em curso (bloqueia o usar)

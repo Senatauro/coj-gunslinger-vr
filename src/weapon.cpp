@@ -506,6 +506,63 @@ asm(".globl _reload_thunk\n"
     "1:\n"
     "  ret $4\n");
 
+// Recarga do akimbo em VR com a mecânica do jogo, nas duas armas ao mesmo tempo. O jogo faz uma de cada vez: com a
+// recarga pedida nas duas (WFC no estado 3), o FUN_009E61A0 tira da mão a arma cujo WFC está parado ou esperando
+// enquanto o da outra recarrega (slot desejado zerado pela chamada em 0x009E6531), e o update do WFC só começa a
+// recarga (FUN_00BEB520, estado 4) quando a outra mão está vazia. Com akimbo_reload 1, em VR: a outra arma fica na mão
+// (a chamada em 0x009E6531 é pulada), o WFC esperando começa já (begin_reload por frame) e, com as duas recarregando
+// juntas, a escala de tempo da recarga (0x00BF4090, usada pela lógica e pela animação) cresce por 1/akimbo_reload_speed
+// (0,7: 30% mais lenta). O resto é do jogo: bala por bala ou pente inteiro, tiro interrompendo, toques no X com a
+// habilidade.
+bool g_akpar asm("_g_akpar") __attribute__((used));  // akimbo em VR com a recarga paralela ligada (atualizado por frame)
+extern "C" void holster_thunk();
+asm(".globl _holster_thunk\n"
+    "_holster_thunk:\n"
+    "  cmpb $0, _g_akpar\n"
+    "  jne 1f\n"
+    "  push $0x0098CAB0\n"
+    "  ret\n"
+    "1:\n"
+    "  ret\n");
+extern "C" void begin_reload(char* wfc);
+asm(".globl _begin_reload\n"
+    "_begin_reload:\n"
+    "  mov 4(%esp), %eax\n"
+    "  push %ebx\n"
+    "  push %esi\n"
+    "  push %edi\n"
+    "  push %ebp\n"
+    "  push $0\n"
+    "  mov $0x00BEB520, %ecx\n"
+    "  call *%ecx\n"
+    "  pop %ebp\n"
+    "  pop %edi\n"
+    "  pop %esi\n"
+    "  pop %ebx\n"
+    "  ret\n");
+int wfc_state(char* p, int k) {
+	char* w = *(char**)(p + 0x538 + 4 * k);
+	return w ? *(int*)(w + 0x30) : -1;
+}
+extern "C" float __stdcall reload_scale(char* wfc) {
+	float s = ((float(__stdcall*)(char*))0x00BF4090)(wfc);
+	char* p = player_local();
+	if (g_akpar && p) {
+		int a = wfc_state(p, 0), b = wfc_state(p, 1);
+		if ((a == 3 || a == 4) && (b == 3 || b == 4)) s /= fmaxf(0.1f, setting("akimbo_reload_speed", 0.7f));
+	}
+	return s;
+}
+// Por frame, no update: liga o modo e começa a recarga do WFC que ficou esperando a outra mão.
+void akimbo_reload_frame(char* p) {
+	bool was = g_akpar;
+	g_akpar = setting("akimbo_reload", 1) && player_head_frame() && *(char**)(p + 0x538) && *(char**)(p + 0x53C) &&
+	          *(char**)(p + 0xA84) && *(char**)(p + 0xA90);
+	if (g_akpar != was) logf("armas: recarga paralela do akimbo %s", g_akpar ? "ligada" : "desligada");
+	for (int k = 0; g_akpar && k < 2; k++)
+		if (wfc_state(p, k) == 3) begin_reload(*(char**)(p + 0x538 + 4 * k)), logf("armas: recarga da mão lógica %d começada junto", k);
+}
+
 inline char* body_obj(char* body) { return ((char*(__thiscall*)(char*))(*(void***)body)[2])(body); }
 inline int body_bone(char* body, const char* name) { return ((int(__thiscall*)(char*, const char*))0x00E93420)(body, name); }
 }  // namespace
@@ -530,6 +587,8 @@ bool weapon_muzzle(float out[3]) {
 
 // Cano e eixo da arma da mão lógica k na pose do frame (o mesmo raio do tiro e do ponto de mira).
 bool weapon_barrel(int k, float pos[3], float dir[3]) { return g_vis && muzzle_of(k, pos, dir); }
+// Gatilho físico da mão que segura a arma da mão lógica k (0..1); 0 sem arma nessa mão lógica.
+float weapon_trigger(int k) { return g_vis && *(char**)(g_vis + 0x650 + 4 * k) ? g_trig[phys(k)] : 0; }
 void hand_body(int h, float o[3]);
 // Mão física h no frame do corpo (cm: x direita, y cima, z frente), como as zonas dos coldres.
 bool weapon_hand_body(int h, float o[3]) { return g_hand_ok[h] && (hand_body(h, o), true); }
@@ -634,6 +693,7 @@ void weapon_frame() {
 		// derrubando o jogo.
 		g_vis = player_vis(p);
 		dyn_trace(p);
+		akimbo_reload_frame(p);
 		if (player_head_frame()) hands_select_test(p);
 		if (g_vis && setting("hands_dump", 0)) setting_set("hands_dump", 0), hands_dump(g_vis, p);
 	}
@@ -1393,6 +1453,15 @@ void weapon_camera(bool paused) {
 	for (int h = 0; h < 2; h++)
 		if (g_hand_ok[h]) player_to_game(g_trk[h], g_hand[h]), holder_of(g_hand[h], T[h]);  // a pose do frame, âncora final
 	aim_update();
+	if (p && setting("reload_log", 0)) {  // diagnóstico: armas do vis, estado dos WFC e itens do jogador, quando mudam
+		static char last[256];
+		char cur[256];
+		auto st = [&](int k) { char* w = *(char**)(p + 0x538 + 4 * k); return w ? *(int*)(w + 0x30) : -1; };
+		auto it = [&](int i) { return *(void**)(p + 0xA54 + 0xC * i); };
+		snprintf(cur, sizeof cur, "vis %p %p | wfc %d %d | itens %p %p %p %p %p %p", *(void**)(vis + 0x650), *(void**)(vis + 0x654), st(0), st(1),
+		         it(0), it(1), it(2), it(3), it(4), it(5));
+		if (strcmp(cur, last)) strcpy(last, cur), logf("armas: %s", cur);
+	}
 	bool duel = duel_active(p), gat = gatling_on(p);  // na gatling as mãos ficam vazias, nos controles (o ponto de mira é o dela)
 	for (int k = 0; k < 2; k++) {
 		if (gat || !g_hand_ok[phys(k)] || !shown(p, k) || (k == 0 && duel_gun_holstered(p))) continue;  // duelo: arma no coldre até o saque
@@ -1538,6 +1607,10 @@ void weapon_init() {
 	if (*(uintptr_t*)0x01342564 != 0x00990DD0) return logf("armas: slot do PlayerFppVis::vf110 não confere; armas na mão desligadas");
 	o_vf110 = (vf110_t)patch_ptr(0x01342564, (void*)hk_vf110);
 	if (*(uintptr_t*)0x01342DE4 == 0x009ABE30) o_duel_vf110 = (duel_vf110_t)patch_ptr(0x01342DE4, (void*)hk_duel_vf110);
+	int n0 = patch_call(0x009E6531, 0x0098CAB0, (void*)holster_thunk);
+	static const uintptr_t scale_sites[] = {0x00985253, 0x00985346, 0x0098541E, 0x00BF376B};
+	for (uintptr_t a : scale_sites) n0 += patch_call(a, 0x00BF4090, (void*)reload_scale);
+	logf("armas: recarga paralela do akimbo: %d de 5 chamadas", n0);
 	static const uintptr_t shoot_sites[] = {0x00BE8FA5, 0x00BE8FEC, 0x00BEA65D, 0x00BEA82C, 0x00BEA8AF,
 	                                        0x00C11A54, 0x00C134FE, 0x00C19DA1, 0x00C1F0C1};
 	int n = 0;
