@@ -819,37 +819,51 @@ void vr_haptic(int hand, float sec, float hz, float amp) {
 }
 
 // Vinheta de conforto: overlay preso ao HMD, borda preta e centro livre, que aparece em ~0,15 s enquanto o jogador
-// anda ou gira (target = intensidade 0..1; 0 esconde). Textura 128×128 gerada aqui.
+// anda ou gira (target = intensidade 0..1; 0 esconde). A intensidade k fecha a abertura: livre até 45° − 35°·k do
+// centro e preta 16° depois (Low 33°→49°, Medium 24°→40°, High 15°→31°). O olho do Quest 3 vê de ~40° a ~55° do
+// centro; antes a borda era fixa (31°→56°) e k só baixava o alfa, então a vinheta mal passava da borda da lente.
+// Textura 128×128 gerada aqui e refeita só quando a intensidade muda nas opções (1 SetOverlayRaw por troca).
 static VROverlayHandle_t g_vig;
 void vr_vignette(float target) {
 	if (!g_vr || !g_ovl) return;
-	static float cur;
+	static float cur, k = -1;
 	static bool shown;
 	static LONGLONG last;
 	LONGLONG now = now_qpc();
-	float dt = last ? fminf(0.1f, (float)qpc_ms(now - last) / 1000) : 0;
-	last = now, cur += (target > cur ? 1 : -1) * fminf(fabsf(target - cur), dt / 0.15f);
+	float dt = last ? fminf(0.1f, (float)qpc_ms(now - last) / 1000) : 0, on = target > 0;
+	last = now, cur += (on > cur ? 1 : -1) * fminf(fabsf(on - cur), dt / 0.15f);
 	if (!g_vig) {
 		if (g_ovl->CreateOverlay((char*)"cojvr.vignette", (char*)"CoJ VR vinheta", &g_vig)) return;
-		static uint8_t px[128 * 128 * 4];
-		for (int y = 0; y < 128; y++)
-			for (int x = 0; x < 128; x++) {  // raio no plano (meia largura = 1 m, a 0,5 m): livre até ~31°, preto a ~56°
-				float u = hypotf(x - 63.5f, y - 63.5f) / 64, a = fminf(1, fmaxf(0, (u - 0.30f) / 0.45f));
-				px[(y * 128 + x) * 4 + 3] = (uint8_t)(255 * a * a * (3 - 2 * a));
-			}
-		g_ovl->SetOverlayRaw(g_vig, px, 128, 128, 4);
 		HmdMatrix34_t t = {{{1, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 1, -0.5f}}};
 		g_ovl->SetOverlayTransformTrackedDeviceRelative(g_vig, k_unTrackedDeviceIndex_Hmd, &t);
-		g_ovl->SetOverlayWidthInMeters(g_vig, 2.0f);
+		g_ovl->SetOverlayWidthInMeters(g_vig, 2.4f);  // a 0,5 m cobre até ~67° do centro, além do campo do Quest 3
 		g_ovl->SetOverlaySortOrder(g_vig, 10);  // por cima do HUD e das miras
 		logf("vinheta: criada");
+	}
+	if (on && fabsf(target - k) > 0.01f) {
+		k = target;
+		float in = 45 - 35 * k, out = in + 16;
+		static uint8_t px[128 * 128 * 4];
+		for (int y = 0; y < 128; y++)
+			for (int x = 0; x < 128; x++) {  // 64 px = 1,2 m no plano a 0,5 m: ângulo = atan(raio em px · 2,4/64)
+				float deg = atanf(hypotf(x - 63.5f, y - 63.5f) * 2.4f / 64) * 57.29578f;
+				float a = fminf(1, fmaxf(0, (deg - in) / (out - in)));
+				px[(y * 128 + x) * 4 + 3] = (uint8_t)(255 * a * a * (3 - 2 * a));
+			}
+		EVROverlayError e = g_ovl->SetOverlayRaw(g_vig, px, 128, 128, 4);
+		logf("vinheta: intensidade %.2f, livre até %.0f°, preta a partir de %.0f° (SetOverlayRaw -> %d)", k, in, out, e);
 	}
 	if (cur < 0.01f) {
 		if (shown) g_ovl->HideOverlay(g_vig), shown = false;
 		return;
 	}
 	g_ovl->SetOverlayAlpha(g_vig, cur);
-	if (!shown) g_ovl->ShowOverlay(g_vig), shown = true;
+	if (!shown) {
+		EVROverlayError e = g_ovl->ShowOverlay(g_vig);
+		static int n;
+		if (n++ < 3 || e) logf("vinheta: mostrada (ShowOverlay -> %d)", e);
+		shown = true;
+	}
 }
 
 // Ponto de mira de cada mão (overlay pequeno, sempre virado para a cabeça). Retículo RGBA 64×64 gerado aqui, branco
