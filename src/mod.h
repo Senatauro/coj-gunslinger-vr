@@ -190,6 +190,19 @@ void mod_init();
 void* patch_ptr(uintptr_t addr, void* val);  // troca um ponteiro (vtable/IAT) e devolve o antigo
 bool patch_call(uintptr_t site, uintptr_t expect, void* to);  // weapon.cpp: troca o destino de um call E8 (só se ele ainda for expect)
 
+// real.cpp: armas realistas (peças movidas pela mão, recarga manual)
+void real_camera(char* p, int k, char* wv);  // depois de a arma da mão lógica k estar na mão (weapon_camera)
+void real_frame(char* p, float dt);           // fim do weapon_frame: gestos (cão, alavanca) com as mãos do frame
+void real_pad(char* p, LONG* cur);            // no weapon_pad: gatilho do jogo (RT/LT) pelo estado do cão
+void real_shot(int k, bool fired);            // Shoot do jogador pela mão lógica k (fired = saiu bala)
+WORD real_buttons(WORD vr);                   // botões crus do VR; devolve os que o mod consome (polegar no cão)
+char* weapon_held(char* p, int k);            // weapon.cpp: WeaponVis da arma da mão lógica k quando está na mão
+int weapon_phys(int k);                       // weapon.cpp: mão física da mão lógica k
+char* weapon_player_vis();                    // weapon.cpp: PlayerFppVis do jogador (relido a cada frame)
+const float* weapon_aim(int k);               // weapon.cpp: pose da arma k (Holder: x esquerda, y cima, z frente)
+const float* weapon_hand_vel(int h);          // weapon.cpp: velocidade da mão física h no mundo do jogo (cm/s)
+bool weapon_supported(int k);                 // weapon.cpp: a outra mão apoia a arma k
+
 // options.cpp
 void options_init();  // opções de VR na lista de Opções → Jogo do próprio jogo
 

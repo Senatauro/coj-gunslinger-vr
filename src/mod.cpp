@@ -150,6 +150,7 @@ static DWORD WINAPI hk_xgs(DWORD user, XINPUT_STATE* s) {
 	LONG b = g_pad;
 	XINPUT_GAMEPAD v = {};
 	bool vr = user == 0 && vr_gamepad(&v);  // controles VR; o pad de teste soma por cima
+	if (vr) v.wButtons &= ~real_buttons(v.wButtons);  // polegar no cão/alavanca (armas realistas)
 	if (user != 0 || (b < 0 && !vr)) return o_xgs(user, s);
 	if (b < 0) b = 0;
 	static DWORD packet;

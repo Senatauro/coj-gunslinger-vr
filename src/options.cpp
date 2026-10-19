@@ -105,6 +105,7 @@ VrOpt g_opts[] = {  // rótulos em inglês, como o resto do menu; key = nome da 
 	{"VR: duels", "duel_vr", 1, 2, {"Flat screen", "VR"}, {0, 1}},
 	{"VR: duel focus", "duel_signs", 1, 2, {"Game's reticle", "Signs on the enemy"}, {0, 1}},
 	{"VR: duel aim dot", "duel_gaze", 1, 2, {"Off", "On"}, {0, 1}},
+	{"VR: realistic guns (experimental)", "real_guns", 0, 2, {"Off", "On"}, {0, 1}},
 	// Linhas de ação (não são gravadas no INI): escolher "Open…" e aceitar abre a página no navegador do computador
 	{"VR: report a bug / send feedback", "report", 0, 2, {"-", "Open page on the PC"}, {0, 1}},
 	{g_update_label, "update", 0, 2, {"-", "Open download page on the PC"}, {0, 1}},

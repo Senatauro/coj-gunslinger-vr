@@ -442,6 +442,7 @@ bool __stdcall hk_shoot(char* wfc, float x, float y, float z) {
 	if (g_shot >= 0) acc[0] *= k, acc[1] *= k;
 	bool r = ((shoot_t)0x00BE9000)(wfc, x, y, z);
 	if (g_shot >= 0) acc[0] = a0[0], acc[1] = a0[1];
+	if (p && *(char**)(wfc + 0x28) == p && (h == 0 || h == 1)) real_shot(h, r);
 	if (g_shot >= 0 && r) {  // o tiro em seco (tambor vazio) devolve false: sem coice nem vibração
 		LARGE_INTEGER t;
 		QueryPerformanceCounter(&t);
@@ -628,6 +629,12 @@ bool weapon_muzzle(float out[3]) {
 bool weapon_barrel(int k, float pos[3], float dir[3]) { return g_vis && muzzle_of(k, pos, dir); }
 // Gatilho físico da mão que segura a arma da mão lógica k (0..1); 0 sem arma nessa mão lógica.
 float weapon_trigger(int k) { return g_vis && *(char**)(g_vis + 0x650 + 4 * k) ? g_trig[phys(k)] : 0; }
+// Para as armas realistas (real.cpp): mão física da mão lógica k, pose da arma k (Holder), velocidade da mão física h
+// no mundo do jogo (cm/s) e se a outra mão apoia a arma k.
+int weapon_phys(int k) { return phys(k); }
+char* weapon_player_vis() { return g_vis; }
+const float* weapon_aim(int k) { return g_aim[k & 1]; }
+bool weapon_supported(int k) { return g_support[1 - phys(k)]; }
 void hand_body(int h, float o[3]);
 // Mão física h no frame do corpo (cm: x direita, y cima, z frente), como as zonas dos coldres.
 bool weapon_hand_body(int h, float o[3]) { return g_hand_ok[h] && (hand_body(h, o), true); }
@@ -651,6 +658,7 @@ LONGLONG g_throw_qpc;     // último arremesso (QPC)
 bool g_throwing;          // dentro do ThrowInventoryItem
 char* g_thrown;           // objeto do último arremesso
 
+const float* weapon_hand_vel(int h) { return g_hand_v[h & 1]; }
 inline bool dyn_in_hand(char* p) { return p && *(int*)(p + 0x5A8) == 4 && *(char**)(p + 0x544); }
 
 // Velocidade de saída do arco: frente da mão × 1500 + 300 para cima (a fórmula do jogo com a mão no lugar do olhar).
@@ -776,6 +784,7 @@ void weapon_frame() {
 		}
 	}
 	nh++;
+	if (char* p = player_local()) real_frame(p, dt);  // armas realistas: gestos do cão e da alavanca
 	if (float ht = setting("haptic_test", 0)) {  // SET haptic_test <s>: pulso longo nas duas mãos (teste da vibração)
 		setting_set("haptic_test", 0);
 		for (int h = 0; h < 2; h++) vr_haptic(h, ht, setting("haptic_hz", 160), 1.0f);
@@ -1321,6 +1330,9 @@ bool shown(char* p, int k) {
 	return g_expect[k] = NULL, true;
 }
 
+// WeaponVis da arma da mão lógica k quando ela está na mão (armas realistas); NULL fora disso.
+char* weapon_held(char* p, int k) { return shown(p, k) ? *(char**)(g_vis + 0x650 + 4 * k) : NULL; }
+
 // Esconde o corpo do duelo (player_tpp, em pé, com a cabeça onde fica a câmera). Os braços já foram colapsados no
 // punho por hand_place e as mãos ficam; todos os outros ossos vão para um ponto só (a cabeça) com escala ε, escritos
 // direto no mundo já calculado (sem marcar os filhos). Com dois pontos de colapso (punho e cabeça), os triângulos
@@ -1615,6 +1627,8 @@ void weapon_camera(bool paused) {
 				for (int c = 0; c < 3; c++) m[r * 4 + c] *= 0.001f;
 		}
 	}
+	for (int k = 0; k < 2; k++)  // peças das armas na mão (armas realistas)
+		if (on[k]) real_camera(p, k, *(char**)(vis + 0x650 + 4 * k));
 	if (duel && setting("duel_dump", 0) && (dump_duel_gun(body, bobj), !setting("duel_hide", 1))) setting_set("duel_dump", 0);
 	if (duel_body(p) && setting("duel_hide", 1)) hide_duel_body(body, bobj);  // também na morte (controlador inativo)
 	if (dyn_in_hand(p)) {  // lançar na soltura (sem esperar o evento da animação) e o arco do gatilho
@@ -2164,6 +2178,7 @@ void weapon_pad(LONG* cur) {
 		g_trig[0] = tr[0] / 255.f, g_trig[1] = tr[1] / 255.f;
 		cur[6] = shown(p, 0) && !duel_gun_holstered(p) ? tr[phys(0)] : 0;  // no duelo, o gatilho só vale com a arma sacada
 		cur[5] = shown(p, 1) ? tr[phys(1)] : 0;
+		real_pad(p, cur);  // armas realistas: o gatilho só chega ao jogo com o cão armado
 	}
 	bool dyn = dyn_in_hand(p);
 
