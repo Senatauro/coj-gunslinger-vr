@@ -524,6 +524,9 @@ void __fastcall hk_mcvf200(char* mc, void*, float dt) {
 		float k = setting("move_speed", 0.75f);
 		v[0] *= k, v[1] *= k, v[2] *= k;
 	}
+	// No Sense of Death o stick que a inclinação da cabeça empurra só escolhe o lado da esquiva; o Move continua ativo
+	// no modo 30 e, sem isto, o corpo corria de 1 a 10 m para o lado enquanto a cabeça ficava inclinada.
+	if (p && mc == *(char**)(p + 0x4F0) && player_dodge()) v[0] = v[2] = 0;
 	static bool who;
 	if (p && !who && (v[0] || v[2])) who = true, logf("jogador: MoveController %p, PlayerDI+0x4F0 %p", (void*)mc, *(void**)(p + 0x4F0));
 	static int n;
