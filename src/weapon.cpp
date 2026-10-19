@@ -2136,7 +2136,7 @@ void hold_frame(char* p) {
 			     dist < 1e8f ? dist : -1.f, busy ? " (mão ocupada)" : "");
 			char* t = use_target(p);
 			if (dist < setting("support_cm", 15) && !real_hand_busy(h)) g_support[h] = true, logf("mãos: mão %s apoia a arma da mão lógica %d", h ? "E" : "D", ko);
-			else if (hol && slot && !busy) grab(p, h, slot);
+			else if (hol && slot && !busy && !real_hand_busy(h)) grab(p, h, slot);  // recarregando, a cintura é das balas
 			else if (t && g_use_h < 0 && !(dyn_in_hand(p) && h == phys(0)) && use_reach(h, t, true)) {  // usar pela mão
 				use_input(p, 1), g_use_h = h;
 				logf("usar: o jogo %s no aperto", p[0x990] & 1 ? "executou" : "não executou (fica para a soltura)");

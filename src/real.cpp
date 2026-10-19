@@ -13,6 +13,7 @@
 #include <math.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 extern "C" float* bone_world(char* obj, int idx);  // weapon.cpp
@@ -188,14 +189,35 @@ struct Gun {
 	bool gprev;           // grip da outra mão no frame anterior
 	bool away;            // a mão que tirou uma bala já saiu do ponto de carga (só então pode pôr de volta)
 	bool trig, fire;      // gatilho físico apertado (com histerese); tiro pedido ao jogo
+	bool shot_hold;       // já atirou (ou clicou) neste aperto: só atira de novo soltando o gatilho ou armando outro cão
 	bool pulse;           // gatilho do jogo apertado agora
 	double t_edge;        // última troca do pulso (ms)
 	bool thumb, long_done;  // polegar apertado; o segurar já virou abrir/fechar
 	double t_thumb;       // quando o polegar desceu (ms)
 	bool fan_block;       // passada do fanning já contada (rearma quando a mão volta ou sai)
 	volatile LONG thumb_req, click_req;  // pedidos da thread do input; o update executa
+	int b_port;           // rifle: elevador do cartucho (de onde o estojo sai, por cima)
+	struct Fly {          // estojo voando: osso, início (ms), posição inicial (mundo, cm) e velocidade (cm/s)
+		int bone;
+		double t0;
+		float p0[3], v[3];
+	} fly[6];
 } g[2];
 bool g_hidden[2];  // akimbo: a arma desta mão lógica foi para o coldre enquanto a outra recarrega
+
+void eject(Gun& G, int k, int bone, const float* from, float vx, float vy, float vz) {
+	const float* A = weapon_aim(k);
+	if (bone < 0 || !A || !G.wv) return;
+	int s = 0;
+	for (int i = 0; i < 6; i++)
+		if (G.fly[i].bone == bone || G.fly[i].t0 < G.fly[s].t0) s = i;  // o mesmo osso recomeça; senão o mais antigo
+	Gun::Fly& f = G.fly[s];
+	const float* W = bone_world(G.wv, bone);
+	float j = (float)(rand() % 41 - 20) / 100;  // um pouco de variação
+	f.bone = bone, f.t0 = now_ms();
+	for (int r = 0; r < 3; r++)
+		f.p0[r] = from ? from[r] : W[r * 4 + 3], f.v[r] = A[r * 4] * vx * (1 + j) + A[r * 4 + 1] * vy + A[r * 4 + 2] * vz * (1 - j);
+}
 
 bool on() { return setting("real_guns", 0) != 0; }
 // A arma da mão lógica k está no modo realista agora: opção ligada, jogo normal (modo 3: o QTE, a Concentração, o
@@ -213,6 +235,11 @@ void logr(const char* fmt, ...) {
 	logf("real: %s", b);
 }
 void haptic(int h, float amp, float s = 0.02f) { vr_haptic(h, s, 160, amp); }
+
+// Estojo (ou bala) saindo da arma: o osso dele voa com a gravidade por real_fly_s, partindo de onde está (ou de from) com
+// a velocidade v no frame da arma (cm/s: x esquerda, y cima, z frente). Usa o próprio cartucho do modelo.
+struct Gun;
+void eject(Gun& G, int k, int bone, const float* from, float vx, float vy, float vz);
 
 // Câmaras de um item, criadas na primeira vez a partir da contagem do jogo: revólver e escopeta com as balas nas
 // primeiras câmaras e estojos no resto (a arma já atirou); rifle com uma bala na câmara e o resto no tubo.
@@ -279,7 +306,8 @@ void setup(char* p, int k, char* wv) {
 	G.wv = wv;
 	if (!wv) return;
 	G.b_ham[0] = bone(wv, "bone_hammer"), G.b_ham[1] = -1, G.b_cyl = bone(wv, "bone_magazine"), G.b_lever = bone(wv, "bone_trigger_reload");
-	G.b_act = G.b_load = -1, G.b_cart = bone(wv, "holder_bullet");
+	G.b_act = G.b_load = -1, G.b_cart = bone(wv, "holder_bullet"), G.b_port = bone(wv, "bone_chamber_up");
+	for (auto& f : G.fly) f.bone = -1, f.t0 = 0;
 	for (int i = 0; i < 6; i++) G.b_ch[i] = -1;
 	if (G.b_lever >= 0) {
 		G.kind = K_LEVER, G.b_load = bone(wv, "bone_side_ellement");
@@ -327,7 +355,7 @@ bool cock(int k, const char* how) {
 	if (G.open) return false;
 	int i = G.kind == K_SHOTGUN && G.cocked[0] ? 1 : 0;
 	if (G.cocked[i] || (G.kind == K_SHOTGUN && G.b_ham[i] < 0)) return false;
-	G.cocked[i] = true;
+	G.cocked[i] = true, G.shot_hold = false;
 	if (G.kind == K_GATE || G.kind == K_BREAK) G.cyl_n++, G.am->idx = (G.am->idx + 1) % 6;
 	bool right = weapon_phys(k) == 0;
 	sound(G.kind == K_BREAK ? (right ? "qs_hammer_pull_right.wav" : "qs_hammer_pull_left.wav")
@@ -345,6 +373,12 @@ void lever_opened(char* p, int k, const char* how) {
 	Ammo& a = *G.am;
 	if (a.st[0] == LIVE) remove_live(p, G.item);
 	const char* was = k_st[a.st[0]];
+	if (a.st[0] != EMPTY && G.b_port >= 0) {  // o estojo sai por cima e para a direita
+		const float *P = bone_world(G.wv, G.b_port), *A = weapon_aim(k);
+		float from[3];
+		for (int r = 0; r < 3; r++) from[r] = P[r * 4 + 3] + (A ? A[r * 4 + 1] * 2 : 0);
+		eject(G, k, G.b_cart, from, -setting("real_eject_side", 90), setting("real_eject_up", 160), -40);
+	}
 	a.st[0] = EMPTY, G.cocked[0] = true;
 	static int n;
 	char nm[24];
@@ -355,6 +389,7 @@ void lever_opened(char* p, int k, const char* how) {
 void lever_closed(int k, const char* how) {
 	Ammo& a = *g[k].am;
 	if (a.tube > 0 && a.st[0] == EMPTY) a.tube--, a.st[0] = LIVE;
+	g[k].shot_hold = false;  // levering: com o gatilho apertado, cada alavanca fechada é um tiro
 	logr("mão lógica %d: alavanca fechada (%s): câmara %s, tubo %d", k, how, k_st[a.st[0]], a.tube);
 }
 
@@ -511,7 +546,8 @@ void loader(char* p, int k) {
 			G.am->st[ch] = EMPTY;
 			sound(snd(G, G.kind == K_SHOTGUN ? "turn" : "insert"), 0.6f), haptic(o, 0.4f);
 			logr("mão lógica %d: %s tirad%s da câmara %d", k, k_st[G.held], G.held == LIVE ? "a" : "o", ch);
-		} else if (weapon_hand_body(o, b) && b[1] < setting("real_pouch_y", -45) && res && *res > 0) {
+		} else if (weapon_hand_body(o, b) && b[1] < setting("real_pouch_y", -45) && res && *res > 0 &&
+		           (G.kind == K_LEVER ? mag(G.item) < cap_of(G.item) : memchr(G.am->st, EMPTY, G.am->n) != NULL)) {
 			G.held = LIVE, G.away = true, haptic(o, 0.3f);
 			logr("mão lógica %d: bala pega na cintura (reserva %d)", k, *res);
 		}
@@ -542,8 +578,41 @@ void tip(int k) {
 	G.tipped = true;
 	int n = 0;
 	for (int i = 0; i < G.am->n; i++)
-		if (G.am->st[i] == SPENT && (G.kind != K_GATE || i == G.am->idx)) G.am->st[i] = EMPTY, n++;
+		if (G.am->st[i] == SPENT && (G.kind != K_GATE || i == G.am->idx)) {
+			G.am->st[i] = EMPTY, n++;
+			if (G.b_ch[i] >= 0) eject(G, k, G.b_ch[i], NULL, 0, 0, -30);  // escopeta: o cartucho escorrega para fora da culatra
+			else if (G.kind == K_GATE && G.b_load >= 0) {  // revólver: o estojo cai pela portinhola
+				const float* P = bone_world(G.wv, G.b_load);
+				float from[3] = {P[3], P[7], P[11]};
+				eject(G, k, G.b_cart, from, -20, 0, -20);
+			}
+		}
 	if (n) logr("mão lógica %d: %d estojo(s) caíram", k, n), haptic(weapon_phys(k), 0.3f);
+}
+
+// Cadência: o intervalo mínimo entre tiros fica no WFC (+0x50, e +0x180 na mira; FUN_00BE87E0 lê), copiado do ShotTime
+// do item ao equipar (Sixshooter 0,275 s, Winchester 0,9 s). Nas armas realistas quem dita o ritmo é a mão (cão,
+// alavanca), então o mod baixa esse intervalo para real_shot_time enquanto a arma está no modo realista e devolve o do
+// jogo depois. Só no WFC do jogador: a descrição do item é a mesma dos inimigos.
+struct Rate {
+	char *wfc, *item;
+	float t50, t180;
+} g_rate[2];
+void cadence(char* p, int k, bool on_) {
+	char *w = *(char**)(p + 0x538 + 4 * k), *it = item_of(p, k);
+	Rate& r = g_rate[k];
+	if (r.wfc && (r.wfc != w || r.item != it || !on_)) {  // devolve o do jogo (só se ainda for a mesma arma no mesmo WFC)
+		if (r.wfc == w && r.item == it) *(float*)(w + 0x50) = r.t50, *(float*)(w + 0x180) = r.t180;
+		r.wfc = NULL;
+	}
+	if (!on_ || !w) return;
+	if (!r.wfc) {  // o normal vem do item (ShotTime, vf38 do desc): na troca de arma o WFC pode ainda ter o valor do mod
+		r.wfc = w, r.item = it, r.t180 = *(float*)(w + 0x180);
+		r.t50 = it ? ((float(__thiscall*)(char*))(*(void***)(it + 0x2C))[38])(it + 0x2C) : *(float*)(w + 0x50);
+		logr("mão lógica %d: cadência do jogo %.3f s (mira %.3f s) -> %.3f s", k, r.t50, r.t180, setting("real_shot_time", 0.12f));
+	}
+	float m = setting("real_shot_time", 0.12f);
+	*(float*)(w + 0x50) = fminf(r.t50, m), *(float*)(w + 0x180) = fminf(r.t180, m);
 }
 }  // namespace
 
@@ -553,6 +622,7 @@ void real_frame(char* p, float dt) {
 		char* wv = on() ? weapon_held(p, k) : NULL;
 		if (wv != g[k].wv || (wv && (*(char**)(wv + 4) != g[k].model || item_of(p, k) != g[k].item))) setup(p, k, wv);
 		Gun& G = g[k];
+		cadence(p, k, active(p, k));
 		if (!active(p, k)) continue;
 		sync(G, k);
 		int h = weapon_phys(k);
@@ -569,7 +639,7 @@ void real_frame(char* p, float dt) {
 			sound(snd(G, "empty")), haptic(h, 0.2f);
 			logr("mão lógica %d: clique (câmara %d: %s)", k, fire_chamber(G), k_st[G.am->st[fire_chamber(G)]]);
 		}
-		if (G.kind == K_GATE || G.kind == K_BREAK) fan(p, k);
+		if ((G.kind == K_GATE || G.kind == K_BREAK) && !G.open && !G.held) fan(p, k);
 		loader(p, k), tip(k);
 		for (int i = 0; i < 2; i++) {
 			float t = G.open ? (G.kind == K_GATE ? setting("real_half_cock", 0.35f) : 0) : G.cocked[i] ? 1.f : 0.f;
@@ -581,7 +651,7 @@ void real_frame(char* p, float dt) {
 		if (G.kind == K_BREAK && G.open && G.act >= 1 && !G.ejected) {  // a Schofield aberta joga os estojos (extrator)
 			int n = 0;
 			for (int i = 0; i < 6; i++)
-				if (G.am->st[i] == SPENT) G.am->st[i] = EMPTY, n++;
+				if (G.am->st[i] == SPENT) G.am->st[i] = EMPTY, n++, eject(G, k, G.b_ch[i], NULL, 0, 60, -120);
 			G.ejected = true;
 			if (n) logr("mão lógica %d: o extrator jogou %d estojo(s)", k, n), haptic(h, 0.3f);
 		}
@@ -613,10 +683,10 @@ void real_pad(char* p, LONG* cur) {
 		float tr = weapon_trigger(k);
 		G.trig = G.trig ? tr > 0.35f : tr > 0.6f;
 		bool ready = !G.open && (G.kind == K_LEVER ? G.cocked[0] && G.lever < 0.05f : G.cocked[0] || G.cocked[1]);
-		if (!G.trig) G.fire = false;
-		else if (ready && !G.fire) {
+		if (!G.trig) G.fire = G.shot_hold = false;
+		else if (ready && !G.fire && !G.shot_hold) {
 			if (G.am->st[fire_chamber(G)] == LIVE) G.fire = true, logr("mão lógica %d: tiro pedido", k);
-			else if (!G.click_req) InterlockedExchange(&G.click_req, 1);
+			else if (!G.click_req) G.shot_hold = true, InterlockedExchange(&G.click_req, 1);
 		}
 		if (G.fire && !G.pulse && t - G.t_edge >= 30) G.pulse = true, G.t_edge = t;
 		else if (G.pulse && (!G.fire || t - G.t_edge >= 45)) G.pulse = false, G.t_edge = t;
@@ -629,7 +699,7 @@ void real_shot(int k, bool fired) {
 	Gun& G = g[k & 1];
 	char* p = player_local();
 	if (!active(p, k)) return;
-	G.fire = G.pulse = false, G.t_edge = now_ms();
+	G.fire = G.pulse = false, G.shot_hold = true, G.t_edge = now_ms();
 	int ch = fire_chamber(G), i = G.kind == K_SHOTGUN ? ch : 0;
 	G.cocked[i] = false;
 	if (fired) G.am->st[ch] = SPENT;
@@ -684,10 +754,26 @@ void real_camera(char* p, int k, char* wv) {
 			static const float dax[] = {0, 2, 0, 0}, ddg[] = {0, 80, 50, 40};
 			set_rot(wv, G.b_act, (int)setting(ax[G.kind], dax[G.kind]), setting(dg[G.kind], ddg[G.kind]) * G.act);
 		}
+		// Estojos voando (gravidade no y do mundo), girando em torno do x da arma.
+		double tn = now_ms();
+		float life = setting("real_fly_s", 0.6f) * 1000;
+		const float* A = weapon_aim(k);
+		bool flying[64] = {};
+		for (auto& f : G.fly) {
+			if (f.bone < 0 || tn - f.t0 > life || !A) continue;
+			float t = (float)(tn - f.t0) / 1000, sp = t * 12, c = cosf(sp), sn = sinf(sp);
+			bone_world(wv, f.bone);
+			float* M = bone_slot(bone_node(wv, f.bone));
+			for (int r = 0; r < 3; r++) {
+				M[r * 4] = A[r * 4], M[r * 4 + 1] = A[r * 4 + 1] * c + A[r * 4 + 2] * sn, M[r * 4 + 2] = -A[r * 4 + 1] * sn + A[r * 4 + 2] * c;
+				M[r * 4 + 3] = f.p0[r] + f.v[r] * t + (r == 1 ? -490 * t * t : 0);
+			}
+			if (f.bone < 64) flying[f.bone] = true;
+		}
 		// Câmaras vazias da Schofield e da escopeta: a bala do modelo some (escala ε, como os braços).
 		for (int i = 0; i < 6; i++) {
 			int b = G.b_ch[i];
-			if (b < 0 || G.am->st[i] != EMPTY) continue;
+			if (b < 0 || G.am->st[i] != EMPTY || (b < 64 && flying[b])) continue;
 			bone_world(wv, b);
 			float* M = bone_slot(bone_node(wv, b));
 			for (int r = 0; r < 3; r++)
@@ -695,7 +781,7 @@ void real_camera(char* p, int k, char* wv) {
 		}
 		// Bala (ou estojo) na outra mão: o cartucho do próprio modelo (holder_bullet, o da animação de recarga) vai para a mão.
 		const float* Hh = weapon_hand_game(1 - weapon_phys(k));
-		if (G.held && G.b_cart >= 0 && Hh) {
+		if (G.held && G.b_cart >= 0 && Hh && !(G.b_cart < 64 && flying[G.b_cart])) {
 			bone_world(wv, G.b_cart);
 			float* M = bone_slot(bone_node(wv, G.b_cart));
 			memcpy(M, Hh, 48);
