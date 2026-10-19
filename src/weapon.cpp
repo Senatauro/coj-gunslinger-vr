@@ -431,12 +431,6 @@ bool __stdcall hk_shoot(char* wfc, float x, float y, float z) {
 		logf("armas: Shoot mão %d (ordem do frame anterior %s) cano %.1f %.1f %.1f direção %.3f %.3f %.3f", h, player_order(), g_muzzle[0], g_muzzle[1], g_muzzle[2], g_dir[0],
 		     g_dir[1], g_dir[2]);
 	if (g_shot >= 0 && !gat) wall_test(p, g_muzzle);  // na gatling o corpo dela fica entre a cabeça e a boca
-	if (g_shot >= 0) {
-		LARGE_INTEGER t;
-		QueryPerformanceCounter(&t);
-		g_kick_t0[h] = t.QuadPart;
-		vr_haptic(phys(h), setting("haptic_ms", 60) / 1000, setting("haptic_hz", 160), setting("haptic_amp", 0.8f));
-	}
 	// Spread: a magnitude do cone (0x00BE9E40) é o acumulado WFC+0xA4/+0xA8 (graus) mais a perda por movimento. Em akimbo
 	// sem ADS o acumulado fica parado em ~1,64° (medido), e a mão já é a mira: o mod o escala por spread_scale só
 	// dentro do Shoot e devolve o valor do jogo depois (o acréscimo deste tiro se perde; o acumulado já está no teto).
@@ -448,6 +442,12 @@ bool __stdcall hk_shoot(char* wfc, float x, float y, float z) {
 	if (g_shot >= 0) acc[0] *= k, acc[1] *= k;
 	bool r = ((shoot_t)0x00BE9000)(wfc, x, y, z);
 	if (g_shot >= 0) acc[0] = a0[0], acc[1] = a0[1];
+	if (g_shot >= 0 && r) {  // o tiro em seco (tambor vazio) devolve false: sem coice nem vibração
+		LARGE_INTEGER t;
+		QueryPerformanceCounter(&t);
+		g_kick_t0[h] = t.QuadPart;
+		vr_haptic(phys(h), setting("haptic_ms", 60) / 1000, setting("haptic_hz", 160), setting("haptic_amp", 0.8f));
+	}
 	g_shot = -1;
 	return r;
 }
@@ -483,9 +483,15 @@ asm(".globl _launch_thunk\n"
 // Recarga automática (StartReload 0x00BEE480, stdcall (char pelo jogador), EAX = WFC): com o pente vazio o jogo recarrega
 // sozinho no update do WFC, no Shoot sem bala e ao sacar uma arma vazia (as três chamadas com 0). Em VR a do jogador só
 // vem do X (a chamada com 1); auto_reload 1 devolve as automáticas. Os inimigos continuam recarregando.
-extern "C" int reload_allowed(char* wfc) {
+// Sem a automática, o gatilho com o tambor vazio dá o tiro em seco do jogo (o mesmo de quando falta reserva): no
+// Update ocioso o "pode recarregar" (0x00BEE520, chamada em 0x00BEA746) responde não e o gatilho segue para o Shoot;
+// no Shoot, a recarga bloqueada (0x00BE9215) vira o caminho do tiro em seco (0x00BE9113).
+extern "C" int manual_reload(char* wfc) {
 	char* p = player_local();
-	if (setting("auto_reload", 0) || !p || *(char**)(wfc + 0x28) != p || !player_head_frame()) return 1;
+	return !setting("auto_reload", 0) && p && *(char**)(wfc + 0x28) == p && player_head_frame();
+}
+extern "C" int reload_allowed(char* wfc) {
+	if (!manual_reload(wfc)) return 1;
 	static int n;
 	if (n < 5) n++, logf("armas: recarga automática bloqueada (WFC %p, mão %d)", (void*)wfc, *(int*)(wfc + 0x160));
 	return 0;
@@ -505,6 +511,39 @@ asm(".globl _reload_thunk\n"
     "  jmp *%ecx\n"
     "1:\n"
     "  ret $4\n");
+extern "C" void dry_fire_thunk();
+asm(".globl _dry_fire_thunk\n"
+    "_dry_fire_thunk:\n"
+    "  push %eax\n"
+    "  push %eax\n"
+    "  call _reload_allowed\n"
+    "  add $4, %esp\n"
+    "  mov %eax, %ecx\n"
+    "  pop %eax\n"
+    "  test %ecx, %ecx\n"
+    "  jz 1f\n"
+    "  mov $0x00BEE480, %ecx\n"
+    "  jmp *%ecx\n"
+    "1:\n"
+    "  add $8, %esp\n"  // descarta o retorno e o argumento: segue no Shoot como se não houvesse a chamada
+    "  mov $0x00BE9113, %ecx\n"
+    "  jmp *%ecx\n");
+extern "C" void can_reload_thunk();
+asm(".globl _can_reload_thunk\n"
+    "_can_reload_thunk:\n"
+    "  push %eax\n"
+    "  push %eax\n"
+    "  call _manual_reload\n"
+    "  add $4, %esp\n"
+    "  mov %eax, %ecx\n"
+    "  pop %eax\n"
+    "  test %ecx, %ecx\n"
+    "  jnz 1f\n"
+    "  mov $0x00BEE520, %ecx\n"
+    "  jmp *%ecx\n"
+    "1:\n"
+    "  xor %eax, %eax\n"
+    "  ret\n");
 
 // Recarga do akimbo em VR com a mecânica do jogo, nas duas armas ao mesmo tempo. O jogo faz uma de cada vez: com a
 // recarga pedida nas duas (WFC no estado 3), o FUN_009E61A0 tira da mão a arma cujo WFC está parado ou esperando
@@ -1617,8 +1656,10 @@ void weapon_init() {
 	for (uintptr_t a : shoot_sites) n += patch_call(a, 0x00BE9000, (void*)hk_shoot);
 	n += patch_call(0x00BE9E57, 0x00BEA2B0, (void*)hk_aimdir);  // só o do spread (dentro do Shoot); o raio de mira a 10 Hz fica
 	patch_call(0x00BE9A63, 0x00F4C7F0, (void*)launch_thunk);
-	static const uintptr_t reload_sites[] = {0x00BE84DF, 0x00BE9215, 0x00BEA7D2};
+	static const uintptr_t reload_sites[] = {0x00BE84DF, 0x00BEA7D2};
 	for (uintptr_t a : reload_sites) patch_call(a, 0x00BEE480, (void*)reload_thunk);
+	patch_call(0x00BE9215, 0x00BEE480, (void*)dry_fire_thunk);
+	patch_call(0x00BEA746, 0x00BEE520, (void*)can_reload_thunk);
 	patch_call(0x00BFA24E, 0x00BFA2E0, (void*)throw_thunk);
 	patch_call(0x00BFA3A7, 0x00BFAB20, (void*)hk_spawn);
 	// Desliga as animações de ócio da mão: FUN_00993A40 (idle depois de 30–45 s parado) e FUN_00993BC0 (IdleTrick,
