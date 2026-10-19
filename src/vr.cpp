@@ -276,6 +276,19 @@ struct VkTex {
 static VkTex g_scr, g_eye[2], g_hud;
 static ID3D9VkInteropDevice* g_idev;
 
+// Rótulos do menu de armas (0–5) e da munição no pulso (6–7): menu_texture desenha na CPU e label_flush, no Present,
+// sobe para a textura do rótulo e entrega com SetOverlayTexture. Antes cada mudança ia por SetOverlayRaw, que o SteamVR
+// pode passar a recusar depois de umas 200 chamadas (RequestFailed, openvr#1565): a causa provável da munição do pulso
+// parada no último valor até fechar o jogo.
+enum { LBL_W = 256, LBL_H = 96 };
+static struct Label {
+	VROverlayHandle_t o;
+	VkTex t;
+	IDirect3DSurface9* sys;
+	volatile bool dirty;  // ponytail: o update escreve px e o Present lê sem trava; com FramePipelining 0 (padrão) é a mesma thread
+	uint8_t px[LBL_W * LBL_H * 4];  // RGBA
+} g_lbl[8];
+
 static void vktex_release(VkTex& t) {
 	if (t.itex) t.itex->Release();
 	if (t.surf) t.surf->Release();
@@ -338,6 +351,7 @@ typedef HRESULT(STDMETHODCALLTYPE* reset_t)(IDirect3DDevice9*, D3DPRESENT_PARAME
 static reset_t o_reset;
 static HRESULT STDMETHODCALLTYPE hk_reset(IDirect3DDevice9* dev, D3DPRESENT_PARAMETERS* pp) {
 	vktex_release(g_scr), vktex_release(g_eye[0]), vktex_release(g_eye[1]), vktex_release(g_hud), probe_release();
+	for (Label& l : g_lbl) vktex_release(l.t), l.dirty = l.o;  // sobe de novo na textura nova
 	HRESULT hr = o_reset(dev, pp);
 	logf("Reset %ux%u janela=%d -> %08lx", pp->BackBufferWidth, pp->BackBufferHeight, pp->Windowed, hr);
 	return hr;
@@ -609,17 +623,45 @@ void vr_hud_band(int* b) {  // faixa 16:9 da UI na textura do HUD (w, h, x, y) e
 	memcpy(b, g ? (int*)(g + 0x5B8) : (int[4]){0, 0, 0, 0}, 16), b[4] = g_hud.vk.m_nWidth, b[5] = g_hud.vk.m_nHeight;
 }
 
-static EVROverlayError hud_texture(VROverlayHandle_t o) {  // a textura do HUD deste frame num overlay
-	vktex_check_image(g_hud, "HUD");
+// A textura do HUD deste frame (ou a de um rótulo) num overlay.
+static EVROverlayError hud_texture(VROverlayHandle_t o, VkTex& t = g_hud, const char* what = "HUD") {
+	vktex_check_image(t, what);
 	VkImageSubresourceRange all = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-	Texture_t tex = {&g_hud.vk, ETextureType_TextureType_Vulkan, EColorSpace_ColorSpace_Auto};
-	g_idev->TransitionTextureLayout(g_hud.itex, &all, g_hud.layout, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+	Texture_t tex = {&t.vk, ETextureType_TextureType_Vulkan, EColorSpace_ColorSpace_Auto};
+	g_idev->TransitionTextureLayout(t.itex, &all, t.layout, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
 	g_idev->FlushRenderingCommands();
 	q_lock();
 	EVROverlayError e = g_ovl->SetOverlayTexture(o, &tex);
 	q_unlock();
-	g_idev->TransitionTextureLayout(g_hud.itex, &all, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, g_hud.layout);
+	g_idev->TransitionTextureLayout(t.itex, &all, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, t.layout);
 	return e;
+}
+
+// Rótulos desenhados desde o último Present: RGBA -> superfície na RAM (A8R8G8B8 = BGRA) -> textura -> overlay.
+static void label_flush() {
+	auto dev = *(IDirect3DDevice9**)game::device;
+	for (Label& l : g_lbl) {
+		if (!l.dirty) continue;
+		l.dirty = false;
+		D3DLOCKED_RECT r;
+		if ((!l.t.surf && !vktex_create(l.t, LBL_W, LBL_H, "rótulo")) ||
+		    (!l.sys && FAILED(dev->CreateOffscreenPlainSurface(LBL_W, LBL_H, D3DFMT_A8R8G8B8, D3DPOOL_SYSTEMMEM, &l.sys, NULL))) ||
+		    FAILED(l.sys->LockRect(&r, NULL, 0))) {
+			logf("HUD: rótulo sem textura; SetOverlayRaw -> %d", g_ovl->SetOverlayRaw(l.o, l.px, LBL_W, LBL_H, 4));
+			continue;
+		}
+		for (int y = 0; y < LBL_H; y++)
+			for (int x = 0; x < LBL_W; x++) {
+				const uint8_t* s = l.px + (y * LBL_W + x) * 4;
+				uint8_t* d = (uint8_t*)r.pBits + y * r.Pitch + x * 4;
+				d[0] = s[2], d[1] = s[1], d[2] = s[0], d[3] = s[3];
+			}
+		l.sys->UnlockRect();
+		HRESULT hr = dev->UpdateSurface(l.sys, NULL, l.t.surf, NULL);
+		EVROverlayError e = SUCCEEDED(hr) ? hud_texture(l.o, l.t, "rótulo") : EVROverlayError_VROverlayError_RequestFailed;
+		static int logged;
+		if (logged < 3 || e) logged++, logf("HUD: rótulo %d: UpdateSurface %08lx, SetOverlayTexture -> %d", (int)(&l - g_lbl), hr, e);
+	}
 }
 
 // Overlay do HUD em CENA quando a UI deste frame foi para a textura; preso à cabeça (hud_dist, hud_width, hud_y em m).
@@ -691,6 +733,7 @@ void vr_frame_pre() {
 		if (g_aim_shown[h] && g_aim_pc[h] != present_count() && !on_loading_thread()) g_ovl->HideOverlay(g_aim[h]), g_aim_shown[h] = false;
 	bool loading = on_loading_thread();
 	if (!loading) {
+		label_flush();
 		bool eyes = stereo_frame() && g_eye[0].itex && g_eye[1].itex && vr_eyes_allowed();
 		if (eyes) {
 			g_no_eyes = 0;
@@ -961,8 +1004,8 @@ void vr_arc(const float* pts, int n, const float* tint) {
 
 // Menu de armas, no estilo do seletor do HL2VR. Cada item é um overlay com o rótulo desenhado pelo GDI (fundo escuro;
 // o item apontado fica laranja e maior), virado para a cabeça, na posição pedida (tracking, m).
-static void menu_texture(VROverlayHandle_t o, const char* text, bool hl) {
-	enum { W = 256, H = 96 };
+static void menu_texture(int slot, VROverlayHandle_t o, const char* text, bool hl) {
+	enum { W = LBL_W, H = LBL_H };
 	BITMAPINFO bi = {};
 	bi.bmiHeader.biSize = sizeof bi.bmiHeader, bi.bmiHeader.biWidth = W, bi.bmiHeader.biHeight = -H;
 	bi.bmiHeader.biPlanes = 1, bi.bmiHeader.biBitCount = 32, bi.bmiHeader.biCompression = BI_RGB;
@@ -986,7 +1029,8 @@ static void menu_texture(VROverlayHandle_t o, const char* text, bool hl) {
 		SelectObject(dc, f2), DrawTextW(dc, nl + 1, -1, &r2, DT_CENTER | DT_VCENTER | DT_SINGLELINE), SelectObject(dc, f), DeleteObject(f2);
 	}
 	GdiFlush();
-	static uint8_t px[W * H * 4];
+	Label& l = g_lbl[slot];
+	uint8_t* px = l.px;
 	const uint8_t *b = (const uint8_t*)bits, bg[3] = {(uint8_t)(hl ? 230 : 25), (uint8_t)(hl ? 120 : 22), (uint8_t)(hl ? 20 : 18)};
 	for (int i = 0; i < W * H; i++) {
 		int x = i % W, y = i / W, t = b[i * 4 + 2];  // texto branco: intensidade em qualquer canal
@@ -994,7 +1038,7 @@ static void menu_texture(VROverlayHandle_t o, const char* text, bool hl) {
 		for (int c = 0; c < 3; c++) px[i * 4 + c] = (uint8_t)(edge ? 255 : bg[c] + (255 - bg[c]) * t / 255);
 		px[i * 4 + 3] = edge ? 200 : 215;
 	}
-	g_ovl->SetOverlayRaw(o, px, W, H, 4);
+	l.o = o, l.dirty = true;  // label_flush entrega no Present
 	SelectObject(dc, of), DeleteObject(f), SelectObject(dc, ob), DeleteObject(bm), DeleteDC(dc);
 }
 
@@ -1014,7 +1058,7 @@ void vr_menu(int n, const char* const* labels, const float* pos, int hl) {
 		}
 		char want[40];
 		snprintf(want, sizeof want, "%c%s", i == hl ? '*' : ' ', labels[i]);
-		if (strcmp(want, g_menu_txt[i])) menu_texture(g_menu[i], labels[i], i == hl), strcpy(g_menu_txt[i], want);
+		if (strcmp(want, g_menu_txt[i])) menu_texture(i, g_menu[i], labels[i], i == hl), strcpy(g_menu_txt[i], want);
 		const float* p = pos + i * 3;
 		float z[3] = {hp[3] - p[0], hp[7] - p[1], hp[11] - p[2]}, d = sqrtf(z[0] * z[0] + z[1] * z[1] + z[2] * z[2]);
 		if (d < 1e-3f) continue;
@@ -1043,7 +1087,7 @@ void vr_wrist(int hand, const char* text) {
 	}
 	if (!g_wrist[h] && g_ovl->CreateOverlay((char*)(h ? "cojvr.ammo1" : "cojvr.ammo0"), (char*)"CoJ VR munição", &g_wrist[h])) return;
 	if (strcmp(text, g_wrist_txt[h])) {
-		menu_texture(g_wrist[h], text, false);
+		menu_texture(6 + h, g_wrist[h], text, false);
 		if (!g_wrist_txt[h][0]) g_ovl->ShowOverlay(g_wrist[h]);
 		snprintf(g_wrist_txt[h], sizeof g_wrist_txt[h], "%s", text);
 	}
