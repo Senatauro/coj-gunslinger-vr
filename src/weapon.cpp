@@ -492,6 +492,7 @@ extern "C" int manual_reload(char* wfc) {
 	return !setting("auto_reload", 0) && p && *(char**)(wfc + 0x28) == p && player_head_frame();
 }
 extern "C" int reload_allowed(char* wfc) {
+	if (*(char**)(wfc + 0x28) == player_local() && real_owns(*(int*)(wfc + 0x160))) return 0;  // armas realistas: só a manual
 	if (!manual_reload(wfc)) return 1;
 	static int n;
 	if (n < 5) n++, logf("armas: recarga automática bloqueada (WFC %p, mão %d)", (void*)wfc, *(int*)(wfc + 0x160));
@@ -1323,7 +1324,7 @@ void hands_select_test(char* p) {
 
 // Pode mostrar a arma da mão lógica k? (segura pela mão e já entregue pelo jogo)
 bool shown(char* p, int k) {
-	if (!g_vis || !p || !*(char**)(g_vis + 0x650 + 4 * k)) return false;
+	if (!g_vis || !p || !*(char**)(g_vis + 0x650 + 4 * k) || real_hidden(k)) return false;
 	if (!setting("hold", 1)) return true;
 	if (!g_held[k]) return false;
 	if (g_expect[k] && *(char**)(p + 0xA84 + 0xC * k) != g_expect[k]) return false;
@@ -2134,7 +2135,7 @@ void hold_frame(char* p) {
 			logf("mãos: grip %s no corpo %.0f %.0f %.0f cm, coldre %d, arma da outra a %.0f cm%s", h ? "E" : "D", b[0], b[1], b[2], slot,
 			     dist < 1e8f ? dist : -1.f, busy ? " (mão ocupada)" : "");
 			char* t = use_target(p);
-			if (dist < setting("support_cm", 15)) g_support[h] = true, logf("mãos: mão %s apoia a arma da mão lógica %d", h ? "E" : "D", ko);
+			if (dist < setting("support_cm", 15) && !real_hand_busy(h)) g_support[h] = true, logf("mãos: mão %s apoia a arma da mão lógica %d", h ? "E" : "D", ko);
 			else if (hol && slot && !busy) grab(p, h, slot);
 			else if (t && g_use_h < 0 && !(dyn_in_hand(p) && h == phys(0)) && use_reach(h, t, true)) {  // usar pela mão
 				use_input(p, 1), g_use_h = h;

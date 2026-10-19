@@ -196,6 +196,9 @@ void real_frame(char* p, float dt);           // fim do weapon_frame: gestos (c�
 void real_pad(char* p, LONG* cur);            // no weapon_pad: gatilho do jogo (RT/LT) pelo estado do cão
 void real_shot(int k, bool fired);            // Shoot do jogador pela mão lógica k (fired = saiu bala)
 WORD real_buttons(WORD vr);                   // botões crus do VR; devolve os que o mod consome (polegar no cão)
+bool real_hidden(int k);                      // akimbo: a arma da mão lógica k foi para o coldre enquanto a outra recarrega
+bool real_owns(int k);                        // a recarga do jogo não vale para a arma realista da mão lógica k
+bool real_hand_busy(int h);                   // a mão física h está recarregando a arma da outra (não vira apoio)
 char* weapon_held(char* p, int k);            // weapon.cpp: WeaponVis da arma da mão lógica k quando está na mão
 int weapon_phys(int k);                       // weapon.cpp: mão física da mão lógica k
 char* weapon_player_vis();                    // weapon.cpp: PlayerFppVis do jogador (relido a cada frame)
