@@ -1,5 +1,5 @@
 name: Feedback
-description: Ideas, comfort, how something feels in VR, what you would like to see.
+description: Comfort, how something feels in VR, anything that is not a bug or a feature request.
 labels: [feedback]
 body:
   - type: textarea

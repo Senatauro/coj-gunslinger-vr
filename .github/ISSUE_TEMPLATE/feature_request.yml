@@ -1,0 +1,25 @@
+name: Feature request
+description: Something new you would like the mod to do (a new interaction, an option, support for a headset or controller).
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like?
+      description: The feature, and how you imagine it working in VR.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why?
+      description: What it would fix or make better (e.g. "reloading the revolver by hand would feel more like a real gunfight").
+  - type: input
+    id: where
+    attributes:
+      label: Where in the game? (optional)
+      description: Weapon, mode or moment it applies to, if any (e.g. "duels", "the gatling gun", "Arcade").
+  - type: input
+    id: setup
+    attributes:
+      label: Headset (optional)
