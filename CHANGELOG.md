@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.5
 
 - QTE shootouts no longer ask for buttons: a dot marks the enemy, aim at it and shoot.
 - Akimbo: you can reload one gun while shooting the other; akimbo reloads are 30% slower.
